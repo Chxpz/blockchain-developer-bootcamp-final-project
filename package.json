@@ -1,0 +1,21 @@
+{
+  "name": "DeveloperBootCampConsensys",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@chainlink/contracts": "^0.3.1",
+    "@ethersproject/providers": "^5.5.1",
+    "@openzeppelin/contracts": "^4.4.1",
+    "@truffle/hdwallet-provider": "^2.0.0",
+    "dotenv": "^10.0.0",
+    "ethers": "^5.5.2",
+    "fs": "0.0.1-security"
+  }
+}
