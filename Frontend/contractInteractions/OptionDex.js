@@ -20,10 +20,19 @@ async function toDeposit(amount) {
   await contractOpDex.functions
     .deposit({ value: ethers.utils.parseEther(amount) })
     .then((res) => {
-      console.log(res)
+      obj = {
+          result : res,
+          Msg: `Deposited ${amount}`,
+          errorMsg:''
+      }
     })
     .catch((err) => {
-      console.log(err);
+        let error = JSON.parse(err.error.body)
+        obj = {
+            errorMsg: error.error.message
+        }
+      return obj;
+      
     });
 }
 
@@ -54,7 +63,7 @@ async function toInitializePosition(
         obj = {
             errorMsg: error.error.message
         }
-      console.log(obj);
+      return obj;
       
     });
 }
