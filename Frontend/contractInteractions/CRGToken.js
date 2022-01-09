@@ -50,8 +50,8 @@ async function toBalanceOf(addr) {
       .then((res) => {
         obj = {
           resultBalance: parseFloat(res.toString()),
-        //   Msg: `${amount} CRG tokens minted to ${to}`,
-        //   errorMsg: "",
+          Msg: `${amount} CRG tokens minted to ${to}`,
+          errorMsg: "",
         };
         console.log(obj);
         return obj;
@@ -69,3 +69,29 @@ async function toBalanceOf(addr) {
   }
   
   //toBalanceOf("0x469d407de283c356ab6e5d2c6d93e8a102ae3150")
+
+  async function toApprove(spender, amount) {
+    await contractCrg.functions
+      .approve(spender,amount)
+      .then((res) => {
+        obj = {
+          result: res,
+          Msg: 'Ok',
+          errorMsg: "",
+        };
+        console.log(obj);
+        return obj;
+      })
+      .catch((err) => {
+        let error = JSON.parse(err.error.body);
+        obj = {
+          result: "",
+          Msg: "",
+          errorMsg: error.error.message,
+        };
+        console.log(obj);
+        return obj;
+      });
+  }
+
+  //toApprove("0xC4ef889D713d38bb1C60D1Cbe0c1441051dF8E26",90000000000)
