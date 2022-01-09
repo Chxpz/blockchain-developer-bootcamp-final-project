@@ -29,6 +29,8 @@ async function toDeposit(amount) {
     .catch((err) => {
         let error = JSON.parse(err.error.body)
         obj = {
+            result : '',
+            Msg: '',
             errorMsg: error.error.message
         }
       return obj;
