@@ -21,20 +21,19 @@ async function toDeposit(amount) {
     .deposit({ value: ethers.utils.parseEther(amount) })
     .then((res) => {
       obj = {
-          result : res,
-          Msg: `Deposited ${amount}`,
-          errorMsg:''
-      }
+        result: res,
+        Msg: `Deposited ${amount}`,
+        errorMsg: "",
+      };
     })
     .catch((err) => {
-        let error = JSON.parse(err.error.body)
-        obj = {
-            result : '',
-            Msg: '',
-            errorMsg: error.error.message
-        }
+      let error = JSON.parse(err.error.body);
+      obj = {
+        result: "",
+        Msg: "",
+        errorMsg: error.error.message,
+      };
       return obj;
-      
     });
 }
 
@@ -58,107 +57,126 @@ async function toInitializePosition(
       _expirationDate
     )
     .then((res) => {
-      return(res);
+      console.log(res);
+      return res;
     })
     .catch((err) => {
-        let error = JSON.parse(err.error.body)
-        obj = {
-            errorMsg: error.error.message
-        }
+      let error = JSON.parse(err.error.body);
+      obj = {
+        errorMsg: error.error.message,
+      };
+      console.log(obj);
       return obj;
-      
     });
 }
 
-//toInitializePosition(1,2,1,1,1,1)
+//toInitializePosition(1, 20000000000, 1, 1, 1, 1);
 
-async function toUserMargin(addr){
-    await contractOpDex.functions.userMargin(addr)
-        .then((res) => {
-            let result = parseFloat(res.toString())/100000000
-            obj = {
-                UserMargin = `User margin balance is ${result} `
-            }
-            return obj;
-        })
-        .catch((err) => {
-            let error = JSON.parse(err.error.body)
-            obj = {
-                errorMsg: error.error.message
-            }
-          return obj;
-          
-        });
+async function toUserMargin(addr) {
+  await contractOpDex.functions
+    .userMargin(addr)
+    .then((res) => {
+      let result = parseFloat(res.toString()) / 100000000;
+      obj = {
+        UserMargin: `User margin balance is ${result}`,
+      };
+      console.log(obj);
+      return obj;
+    })
+    .catch((err) => {
+      let error = JSON.parse(err.error.body);
+      obj = {
+        errorMsg: error.error.message,
+      };
+      console.log(obj);
+      return obj;
+    });
 }
 
 //toUserMargin('0xe9e701039a9e296315ca114fe18a7fb2987e6933')
 
 async function toSetAcceptedToken(token) {
-    await contractOpDex.functions.setAcceptedToken(token)
-    .then(() => {
-        obj = {
-            Msg: 'Accepted token set',
-            errorMsg:''
-        }
-        console.log(obj)
-    }).catch((err) => {
-        obj = {
-            Msg:'',
-            errorMsg:err.reason
-        }
-        console.log(obj)
+  await contractOpDex.functions
+    .setAcceptedToken(token)
+    .then((res) => {
+      obj = {
+        result: res,
+        Msg: "Accepted token set",
+        errorMsg: "",
+      };
+      console.log(obj);
     })
+    .catch((err) => {
+      obj = {
+        Msg: "",
+        errorMsg: err.reason,
+      };
+      console.log(obj);
+    });
 }
 
-//toSetAcceptedToken()
+//toSetAcceptedToken('0x67C1F1718D1Bd724017eC29e0022a3A619a8D2b5')
 
-async function toEnterPosition(id, premiumToPay){
-    await contractOpDex.functions.EnterPosition(id, premiumToPay)
-    .then(() =>{
-        obj = {
-            Msg:`Success in entering the position for the operation ID ${id}`,
-            errorMsg:''
-        }
-    }).catch((err) => {
-        obj = {
-            Msg:'',
-            errorMsg: reason.err
-        }
+async function toEnterPosition(id, premiumToPay) {
+  await contractOpDex.functions
+    .EnterPosition(id, premiumToPay)
+    .then((res) => {
+      obj = {
+        result: res,
+        Msg: `Success in entering the position for the operation ID ${id}`,
+        errorMsg: "",
+      };
+      console.log(obj);
+      return obj;
     })
+    .catch((err) => {
+      let error = JSON.parse(err.error.body);
+      obj = {
+        result: '',
+        Msg: '',
+        errorMsg: error.error.message,
+      };
+      console.log(obj);
+      return obj;
+    });
 }
 
-//toEnterPosition()
+toEnterPosition(1, 1);
 
-async function toCalculateRemainingAmount(id){
-    await contractOpDex.functions.calculateRemainingAmount(id)
-        .then((res) =>{
-            obj = {
-                Msg: `The remaining amount is ${res}`,
-                errorMsg: ''
-            }
-        }).catch((err) => {
-            obj = {
-                Msg:'',
-                errorMsg: err.reason
-            }
-        })
+async function toCalculateRemainingAmount(id) {
+  await contractOpDex.functions
+    .calculateRemainingAmount(id)
+    .then((res) => {
+      obj = {
+        Msg: `The remaining amount is ${res}`,
+        errorMsg: "",
+      };
+    })
+    .catch((err) => {
+      obj = {
+        Msg: "",
+        errorMsg: err.reason,
+      };
+    });
 }
 
 //toCalculateRemainingAmount(id)
 
-async function toSettlement(id){
-    await contractOpDex.functions.Settlement(id)
-        .then(() =>{
-            obj = {
-                Msg:'Contract Settled',
-                errorMsg: ''
-            }
-        }).catch((err) => {
-            obj = {
-                Msg:'',
-                errorMsg: err.reason
-            }
-        })
+async function toSettlement(id) {
+  await contractOpDex.functions
+    .Settlement(id)
+    .then(() => {
+      obj = {
+        Msg: "Contract Settled",
+        errorMsg: "",
+      };
+    })
+    .catch((err) => {
+      obj = {
+        Msg: "",
+        errorMsg: err.reason,
+      };
+    });
 }
 
 //toSettlement(id)
