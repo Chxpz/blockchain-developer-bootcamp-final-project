@@ -5,7 +5,7 @@ const { ethers } = require("ethers");
 const _abiOpDex = require("../../build/contracts/OptionDex.json");
 const abiOpDex = _abiOpDex.abi;
 
-const addrOpDex = "0x0Fa2511f09F0A43dc84C61B0bf48ccA6FEa190Ad";
+const addrOpDex = "0xC4ef889D713d38bb1C60D1Cbe0c1441051dF8E26";
 
 const RPC = "http://127.0.0.1:9545/" || "https://api.s0.b.hmny.io";
 
@@ -47,23 +47,37 @@ async function toInitializePosition(
       _expirationDate
     )
     .then((res) => {
-      console.log(res);
+      return(res);
     })
     .catch((err) => {
-      console.log(err);
+        let error = JSON.parse(err.error.body)
+        obj = {
+            errorMsg: error.error.message
+        }
+      console.log(obj);
+      
     });
 }
 
-//toInitializePosition(1,1,1,1,1,1)
+//toInitializePosition(1,2,1,1,1,1)
 
 async function toUserMargin(addr){
     await contractOpDex.functions.userMargin(addr)
         .then((res) => {
             let result = parseFloat(res.toString())/100000000
-            console.log(result)
-        }).catch((err) => {
-            console.log(err)
+            obj = {
+                UserMargin = `User margin balance is ${result} `
+            }
+            return obj;
         })
+        .catch((err) => {
+            let error = JSON.parse(err.error.body)
+            obj = {
+                errorMsg: error.error.message
+            }
+          return obj;
+          
+        });
 }
 
 //toUserMargin('0xe9e701039a9e296315ca114fe18a7fb2987e6933')
