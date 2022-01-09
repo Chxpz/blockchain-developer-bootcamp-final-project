@@ -70,7 +70,7 @@ async function toInitializePosition(
     });
 }
 
-//toInitializePosition(1, 20000000000, 1, 1, 1, 1);
+//toInitializePosition(2,1, 1, 1, 1, 1);
 
 async function toUserMargin(addr) {
   await contractOpDex.functions
@@ -132,16 +132,21 @@ async function toEnterPosition(id, premiumToPay) {
     .catch((err) => {
       let error = JSON.parse(err.error.body);
       obj = {
-        result: '',
-        Msg: '',
         errorMsg: error.error.message,
       };
       console.log(obj);
       return obj;
     });
 }
+toEnterPosition(2,1, 1, 1, 1, 1);
 
-toEnterPosition(1, 1);
+async function getTransactionsById(id){
+    await contractOpDex.functions.orderControls(id)
+        .then((res)=>{
+            console.log(res)
+        })
+}
+//getTransactionsById(1)
 
 async function toCalculateRemainingAmount(id) {
   await contractOpDex.functions

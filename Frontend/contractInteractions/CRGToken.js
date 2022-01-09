@@ -17,8 +17,10 @@ const signer = wallet.connect(provider);
 const contractCrg = new ethers.Contract(addrCrg, abiCrg, signer);
 
 //Mint tokens
-async function mint(to, amount) {
-  await contractCrg.functions
+async function mint(to) {
+  
+  let amount = 10 * 10^18
+    await contractCrg.functions
     .mint(to, amount)
     .then((res) => {
       obj = {
@@ -42,15 +44,15 @@ async function mint(to, amount) {
     });
 }
 
-//mint("0x469d407de283c356ab6e5d2c6d93e8a102ae3150", 90000000000);
+//mint("0x469d407de283c356ab6e5d2c6d93e8a102ae3150");
 
 async function toBalanceOf(addr) {
     await contractCrg.functions
       .balanceOf(addr)
       .then((res) => {
         obj = {
-          resultBalance: parseFloat(res.toString()),
-          Msg: `${amount} CRG tokens minted to ${to}`,
+          result: parseFloat(res.toString()),
+          Msg: '',
           errorMsg: "",
         };
         console.log(obj);
@@ -68,9 +70,10 @@ async function toBalanceOf(addr) {
       });
   }
   
-  //toBalanceOf("0x469d407de283c356ab6e5d2c6d93e8a102ae3150")
+//toBalanceOf("0x469d407de283c356ab6e5d2c6d93e8a102ae3150")
 
-  async function toApprove(spender, amount) {
+  async function toApprove(spender) {
+    let amount = 10 * 10^18
     await contractCrg.functions
       .approve(spender,amount)
       .then((res) => {
@@ -94,4 +97,4 @@ async function toBalanceOf(addr) {
       });
   }
 
-  //toApprove("0xC4ef889D713d38bb1C60D1Cbe0c1441051dF8E26",90000000000)
+  toApprove("0xe9e701039a9e296315ca114fe18a7fb2987e6933")
