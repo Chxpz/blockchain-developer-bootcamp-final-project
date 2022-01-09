@@ -15,5 +15,57 @@ const wallet = new ethers.Wallet(sign);
 const signer = wallet.connect(provider);
 
 const contractCrg = new ethers.Contract(addrCrg, abiCrg, signer);
-console.log(contractCrg);
 
+//Mint tokens
+async function mint(to, amount) {
+  await contractCrg.functions
+    .mint(to, amount)
+    .then((res) => {
+      obj = {
+        result: res,
+        Msg: `${amount} CRG tokens minted to ${to}`,
+        errorMsg: "",
+      };
+      console.log(obj);
+      return obj;
+    })
+
+    .catch((err) => {
+      let error = JSON.parse(err.error.body);
+      obj = {
+        result: "",
+        Msg: "",
+        errorMsg: error.error.message,
+      };
+      console.log(obj);
+      return obj;
+    });
+}
+
+//mint("0x469d407de283c356ab6e5d2c6d93e8a102ae3150", 90000000000);
+
+async function toBalanceOf(addr) {
+    await contractCrg.functions
+      .balanceOf(addr)
+      .then((res) => {
+        obj = {
+          resultBalance: parseFloat(res.toString()),
+        //   Msg: `${amount} CRG tokens minted to ${to}`,
+        //   errorMsg: "",
+        };
+        console.log(obj);
+        return obj;
+      })
+      .catch((err) => {
+        let error = JSON.parse(err.error.body);
+        obj = {
+          result: "",
+          Msg: "",
+          errorMsg: error.error.message,
+        };
+        console.log(obj);
+        return obj;
+      });
+  }
+  
+  //toBalanceOf("0x469d407de283c356ab6e5d2c6d93e8a102ae3150")
