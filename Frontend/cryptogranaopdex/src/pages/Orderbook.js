@@ -1,11 +1,12 @@
+import OrderBook from "../components/Orderbook";
+
 function Orderbook() {
-  
-  
-  
-    return (
-      <div>orderbook</div>
-    )
-      
+  return (
+    <div>
+      <OrderBook />
+    </div>
+  );
 }
 
-export default Orderbook;<div>orderbook</div>
+export default Orderbook;
+<div>orderbook</div>;

@@ -10,13 +10,18 @@ const useStyles = makeStyles({
     width: '30vh',
     margin: "0% 0% 0% 0%",
     padding: "5% 5% 5% 5%",
-    background: "linear-gradient(135deg, #2989d8 9%,#11396d 28%)",
+    background: 'linear-gradient(90deg, rgba(19,10,20,1) 1%, rgba(19,10,20,1) 18%, rgba(19,10,20,1) 38%, rgba(24,4,22,1) 54%, rgba(19,11,20,1) 74%, rgba(38,19,48,1) 94%)',
     border: "1px solid rgb(75,0,130)",
     borderRadius: "20px 20px 20px 20px",
-    boxShadow: "7px 7px 7px 2px rgb(40,20,40)",
+    boxShadow: "0px 0px 15px 5px rgb(128, 91, 128)",
     boxSizing: "border-box",
     color: "white",
+    '&:hover':{
+      boxShadow: '0 1px rgb(15, 15, 15)',
+      transform: 'translateY(3px)'
+    }
   },
+
   cardContent:{
     padding: "10% 10% 10% 10%",
   },

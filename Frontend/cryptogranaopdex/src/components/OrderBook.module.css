@@ -1,0 +1,58 @@
+
+.gridContainer {
+    justify-content:center; 
+    align-items:center;
+        
+}
+
+.grid{    
+    justify-content:center;
+    display:grid; 
+}
+
+table {
+    margin-top:10%;
+    background:rgb(141, 2, 151);
+    justify-content:space-between;
+    
+}
+
+.purchase:hover {
+    background:rgb(158, 111, 202)
+}
+
+.purchase:active {
+    background:rgb(158, 111, 202);
+    box-shadow: 0 1px rgb(15, 15, 15);
+    transform: translateY(3px);
+
+}
+
+.keepers:active {
+    background:rgb(113, 51, 212);
+    box-shadow: 0 1px rgb(15, 15, 15);
+    transform: translateY(3px);
+}
+
+.keepers:hover {
+    background:rgb(113, 51, 212)
+}
+
+th {
+    background-color: rgb(23, 25, 26);
+    color: rgb(178, 174, 180);
+    font-size: 1.5rem;
+    margin:10%;
+}
+
+
+td {
+    background-color: rgb(22, 21, 21);
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+}
+
