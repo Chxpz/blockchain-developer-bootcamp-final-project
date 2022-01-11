@@ -1,4 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles";
+import DepositAndWithdraw from "../components/DepositAndWithdraw";
 
 import ListPositions from '../positions/PositionsList'
 
@@ -97,6 +98,7 @@ function MyPositions() {
     
     // <Orderbook />,
     <div className={classes.root}>
+    <DepositAndWithdraw />
     <ListPositions positions = {Dummy_Data} 
     />
     </div>
