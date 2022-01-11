@@ -1,7 +1,7 @@
 import * as React from "react";
 import "./OrderForm.css";
 
-export default function OrderForm() {
+export default function OrderForm({ onOpen = () => {} }, childrem) {
   return (
     <div class="container">
       <div class="card">
@@ -23,8 +23,7 @@ export default function OrderForm() {
             <h3>Due date:</h3>
             <input></input>
           </div>
-
-          <a href="#">Create</a>
+          <button onClick={onOpen}>Create</button>
         </div>
       </div>
     </div>
