@@ -67,7 +67,7 @@ function MainNavigation() {
   const [signer, setSigner] = useState(null);
   const [contract, setContract] = useState(null);
 
-   return (
+  return (
     <header className={classes.header}>
       <nav>
         <ul>
@@ -84,10 +84,14 @@ function MainNavigation() {
             <Link to="/Mypositions">My Positions</Link>
           </li>
           <li>
-          <button className={classes.button} onClick={connectWalletHandler}>{connButtonText}</button>
-          <span className={classes.span}>{defaultAccount}</span>
-            
-            
+            <button className={classes.button} onClick={connectWalletHandler}>
+              {connButtonText}
+            </button>
+            <span className={classes.span}>{defaultAccount}</span>
+          </li>
+          <li>
+            <span className={classes.spanmargin}>User margin:  </span>
+            <span className={classes.spanmargin}>10,000</span>
           </li>
         </ul>
       </nav>

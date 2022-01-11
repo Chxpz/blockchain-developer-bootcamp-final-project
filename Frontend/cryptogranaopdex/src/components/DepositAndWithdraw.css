@@ -1,0 +1,33 @@
+.grid{
+    display: inline;
+    justify-content: space-around;
+}
+
+.deposit{
+    color:rgb(4, 154, 160) !important;
+    outline:1px solid !important;
+    margin:1% !important;
+    margin-top: 6% !important;
+    margin-bottom: 6% !important;
+    
+}
+
+.withdraw{
+    color:rgb(207, 5, 190) !important;
+    outline:1px solid !important;
+    margin:1% !important;
+    margin-top: 6% !important;
+    margin-bottom: 6% !important;
+}
+
+.field{
+    outline:1px solid !important;
+    color:white !important;
+    margin:1% !important;
+    margin-top: 6% !important;
+    margin-bottom: 6% !important;
+}
+
+.Value{
+    color:white
+}
