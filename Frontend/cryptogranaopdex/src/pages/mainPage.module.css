@@ -5,11 +5,30 @@
 
 .div2{
   
-  display: flex;
+  display: block;
   margin-top: 1%;
   width: 60%;
 
 }
+
+.div2 h1{
+  color:white;
+  
+  font-size:4rem
+}
+
+.div2 h3{
+  color:white;
+  
+  
+}
+
+.div2 p{
+  color:white;
+  max-width:85%;
+  
+}
+
 
 .div3{
   
@@ -26,3 +45,4 @@
  max-height: 90%
 
 }
+

@@ -67,7 +67,7 @@ function MainNavigation() {
   const [signer, setSigner] = useState(null);
   const [contract, setContract] = useState(null);
 
-  return (
+   return (
     <header className={classes.header}>
       <nav>
         <ul>
