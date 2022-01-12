@@ -3,23 +3,23 @@ import "./OrderForm.css";
 
 export default function OrderForm({ onOpen = () => {} }, childrem) {
   return (
-    <div class="container">
-      <div class="card">
-        <div class="contentBx">
+    <div className="container">
+      <div className="card">
+        <div className="contentBx">
           <h2>Initiate your position</h2>
-          <div class="size">
+          <div className="size">
             <h3>Size: </h3>
             <input></input>
           </div>
-          <div class="size">
+          <div className="size">
             <h3>Call or Put:</h3>
             <input></input>
           </div>
-          <div class="size">
+          <div className="size">
             <h3>Price Future:</h3>
             <input></input>
           </div>
-          <div class="size">
+          <div className="size">
             <h3>Due date:</h3>
             <input></input>
           </div>

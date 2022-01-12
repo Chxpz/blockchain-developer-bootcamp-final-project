@@ -4,9 +4,11 @@ import classes from './mainPage.module.css'
 
 function MainPage() {
   return (
+    
    <div className={classes.div1}>
-       <p>teste</p>
+    {/* {props.connector()}    */}
        <div className={classes.div2}>
+         
            <h1>Hedge your $one portfolio</h1>
            <h3>For $one holders</h3>
            <p>If you hold some $one tokens, create put or call options
@@ -22,7 +24,7 @@ function MainPage() {
            </p>
        </div>
        <div className={classes.div3}>
-            <img className={classes.img} src = {heropage} />
+            <img className={classes.img} src = {heropage} alt='' />
        </div>
    </div> 
   )

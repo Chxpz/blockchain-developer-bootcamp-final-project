@@ -1,73 +1,87 @@
-import React, { useState } from "react";
-import { ethers } from "ethers";
-
+// import React, { useState } from "react";
+// import { ethers } from "ethers";
+import React, {useState} from 'react'
 import { Link } from "react-router-dom";
 import classes from "./MainNavegations.module.css";
+import { ethers } from "ethers";
 
-function MainNavigation() {
-  let contractAddress = "";
-  let SimpleStorage_abi = [{}];
+function MainNavigation(props, children) {
 
-  //Using to connect
-  const connectWalletHandler = () => {
-    if (window.ethereum && window.ethereum.isMetaMask) {
-      window.ethereum
-        .request({ method: "eth_requestAccounts" })
-        .then((result) => {
-          accountChangedHandler(result[0]);
-          setConnButtonText("Wallet Connected");
-        })
-        .catch((error) => {
-          setErrorMessage(error.message);
-        });
-    } else {
-      console.log("Need to install MetaMask");
-      setErrorMessage("Please install MetaMask browser extension to interact");
-    }
-  };
+ // deploy simple storage contract and paste deployed contract address here. This value is local ganache chain
+ let contractAddress = '0xCF31E7c9E7854D7Ecd3F3151a9979BC2a82B4fe3';
+ let SimpleStorage_abi = [{}]
+ 
+ const [userMargin, setUserMargin] = useState(null);
+ const [errorMessage, setErrorMessage] = useState(null);
+ const [defaultAccount, setDefaultAccount] = useState(null);
+ const [connButtonText, setConnButtonText] = useState('Connect Wallet');
 
-  // update account, will cause component re-render
-  const accountChangedHandler = (newAccount) => {
-    setDefaultAccount(newAccount);
-    updateEthers();
-  };
+ const [currentContractVal, setCurrentContractVal] = useState(null);
 
-  const chainChangedHandler = () => {
-    // reload the page to avoid any errors with chain change mid use of application
-    window.location.reload();
-  };
+ const [provider, setProvider] = useState(null);
+ const [signer, setSigner] = useState(null);
+ const [contract, setContract] = useState(null);
 
-  // listen for account changes
-  window.ethereum.on("accountsChanged", accountChangedHandler);
+ const connectWalletHandler = () => {
+   if (window.ethereum && window.ethereum.isMetaMask) {
 
-  window.ethereum.on("chainChanged", chainChangedHandler);
+     window.ethereum.request({ method: 'eth_requestAccounts'})
+     .then(result => {
+       accountChangedHandler(result[0]);
+       setConnButtonText('Wallet Connected');
+     })
+     .catch(error => {
+       setErrorMessage(error.message);
+     
+     });
 
-  const updateEthers = () => {
-    let tempProvider = new ethers.providers.Web3Provider(window.ethereum);
-    setProvider(tempProvider);
+   } else {
+     console.log('Need to install MetaMask');
+     setErrorMessage('Please install MetaMask browser extension to interact');
+   }
+ }
 
-    let tempSigner = tempProvider.getSigner();
-    setSigner(tempSigner);
+ // update account, will cause component re-render
+ const accountChangedHandler = (newAccount) => {
+   setDefaultAccount(newAccount);
+   updateEthers();
+ }
 
-    let tempContract = new ethers.Contract(
-      contractAddress,
-      SimpleStorage_abi,
-      tempSigner
-    );
-    setContract(tempContract);
-  };
+ const chainChangedHandler = () => {
+   // reload the page to avoid any errors with chain change mid use of application
+   window.location.reload();
+ }
 
-  const [errorMessage, setErrorMessage] = useState(null);
-  const [defaultAccount, setDefaultAccount] = useState(null);
-  const [connButtonText, setConnButtonText] = useState("Connect Wallet");
 
-  const [currentContractVal, setCurrentContractVal] = useState(null);
+ // listen for account changes
+ window.ethereum.on('accountsChanged', accountChangedHandler);
 
-  const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
-  const [contract, setContract] = useState(null);
+ window.ethereum.on('chainChanged', chainChangedHandler);
 
+ const updateEthers = () => {
+   let tempProvider = new ethers.providers.Web3Provider(window.ethereum);
+   setProvider(tempProvider);
+
+   let tempSigner = tempProvider.getSigner();
+   setSigner(tempSigner);
+
+   let tempContract = new ethers.Contract(contractAddress, SimpleStorage_abi, tempSigner);
+   setContract(tempContract);	
+ }
+
+ const setHandler = (event) => {
+   event.preventDefault();
+   console.log('sending ' + event.target.setText.value + ' to the contract');
+   contract.set(event.target.setText.value);
+ }
+
+ const getCurrentVal = async () => {
+   let val = await contract.get();
+   setCurrentContractVal(val);
+ }
+  
   return (
+    
     <header className={classes.header}>
       <nav>
         <ul>
@@ -84,12 +98,14 @@ function MainNavigation() {
             <Link to="/Mypositions">My Positions</Link>
           </li>
           <li>
-            <button className={classes.button} onClick={connectWalletHandler}>
+            {/* <button className={classes.button} onClick={connectWalletHandler}>
               {connButtonText}
-            </button>
-            <span className={classes.span}>{defaultAccount}</span>
+            </button> */}
+            {/* <span className={classes.span}>{defaultAccount}</span> */}
           </li>
           <li>
+            {connectWalletHandler()}
+            <span className={classes.spanmargin}>Address: {defaultAccount}</span>
             <span className={classes.spanmargin}>User margin:  </span>
             <span className={classes.spanmargin}>10,000</span>
           </li>

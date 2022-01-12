@@ -17,7 +17,7 @@ const Dummy_Data = [{
   spot:'2',
   time:'10'
 },
-,
+
 {
   id:'2',
   title:'One',

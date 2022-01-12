@@ -5,9 +5,7 @@ import Modal from '../components/SucessCreateOrderModal';
 
 
 function Trade() {
-  const [modalOpen, setModalOpen] = useState(false);
-  
-  
+  const [modalOpen, setModalOpen] = useState(false); 
     return (
       <div className={classes.div}>
       < OrderForm onOpen = {() => setModalOpen(true)} />
