@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.2;
 
-import "./PriceConsumerV3.sol";
+//import "./PriceConsumerV3.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 
-contract OptionDex is PriceConsumerV3 {
+contract OptionDex {
 
     //one - one/usd
-    constructor() {
-        priceFeed = AggregatorV3Interface(0xcEe686F89bc0dABAd95AEAAC980aE1d97A075FAD);
-    }
+    // constructor() {
+    //     priceFeed = AggregatorV3Interface(0xcEe686F89bc0dABAd95AEAAC980aE1d97A075FAD);
+    // }
 
     event OptionInit (uint optionId , address indexed initiator, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint expirationDate);
     event PositionPurchased (uint optionId , address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint purchasedDate, uint expirationDate);
@@ -19,7 +19,7 @@ contract OptionDex is PriceConsumerV3 {
 
     uint id;//id asigned to each option
     address internal Token;// CRG Token used in the Dapp
-    int checkedPrice;//price verified by the chainlink priceFeed at the expiration date
+    uint checkedPrice;//price verified by the chainlink priceFeed at the expiration date
     uint expirationTime = 5760;//average blocks produced per day
 
 
@@ -60,7 +60,7 @@ contract OptionDex is PriceConsumerV3 {
         expirationTime = _expirationTime;
     }
 
-    function getExpirationTime() public returns (uint){
+    function getExpirationTime() public view returns (uint){
         return expirationTime;
     }
 
@@ -168,9 +168,9 @@ contract OptionDex is PriceConsumerV3 {
     //called by the buyer to purchase an option    
     function EnterPosition (uint _id) public notExpired(_id) notExecuted(_id){
         Option memory _options = orderBook[_id];//initialize the option based on its recored in the orderBook
-        address _initiator = _options.initiator;//instatiate the initiator to receive the premium payment
-        uint8 premium = _options.premium; //instatiate the premium value
-        _buyingTheOption(msg.sender, _initiator, premium);//call the internal function to send the CRG Tokens (premium payment) to the initiator
+        _options.initiator;//instatiate the initiator to receive the premium payment
+        _options.premium; //instatiate the premium value
+        _buyingTheOption(msg.sender, _options.initiator, _options.premium);//call the internal function to send the CRG Tokens (premium payment) to the initiator
         _options.premiumPaid = true; //once Paid set the premium paid to true
         _options.buyer = payable (msg.sender);//update the orderBook setting the buyer as msg.sender
     }
@@ -180,16 +180,14 @@ contract OptionDex is PriceConsumerV3 {
         require(!orderBook[_id].premiumPaid, 'Option can not be removed');
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
-        uint _amount = _options.amount;
-        uint _futurePrice = _options.futurePrice;
         _options.initiator = payable (0x0000000000000000000000000000000000000000);
         _options.buyer = payable (0x0000000000000000000000000000000000000000);
         if(orderBook[_id].sidePosition == 0){
-            availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount; //updates the userMargin
-            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _amount;
+            availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount; //updates the userMargin
+            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
         }else if(orderBook[_id].sidePosition == 1){
-            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + (_amount * _futurePrice); //updates the userMargin
-            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - (_amount * _futurePrice);
+            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + ( _options.amount * _options.futurePrice); //updates the userMargin
+            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - ( _options.amount * _options.futurePrice);
         }else {
             string memory message = 'Error';
         }
@@ -197,46 +195,46 @@ contract OptionDex is PriceConsumerV3 {
 
     //Chainlink PriceConsumer Returns the latest price for the ONE/USD testNet
     //shoud comment this function to run the dapp locally
-    function getLatestPrice() public view virtual override returns (int) {
-        (
-            uint80 roundID, 
-            int price,
-            uint startedAt,
-            uint timeStamp,
-            uint80 answeredInRound
-        ) = priceFeed.latestRoundData();
-        return price;
-    }
-
-    //update the state variable checkedPrice
-    //shoud comment this function to run the dapp locally
-    function updateCheckPrice() public returns (int){
-        checkedPrice = getLatestPrice();
-        return checkedPrice; 
-    }
-
-    // //Use this function to run the dapp locally
-    // function setCheckPrice(uint _inputedPrice) public{
-    //     checkedPrice = _inputedPrice;
+    // function getLatestPrice() public view virtual override returns (int) {
+    //     (
+    //         uint80 roundID, 
+    //         int price,
+    //         uint startedAt,
+    //         uint timeStamp,
+    //         uint80 answeredInRound
+    //     ) = priceFeed.latestRoundData();
+    //     return price;
     // }
-    
-    // //Use this function to run the dapp locally
+
+    // //update the state variable checkedPrice
+    // //shoud comment this function to run the dapp locally
     // function updateCheckPrice() public returns (int){
+    //     checkedPrice = getLatestPrice();
     //     return checkedPrice; 
     // }
+
+    //Use this function to run the dapp locally
+    function setCheckPrice(uint _inputedPrice) public{
+        checkedPrice = _inputedPrice;
+    }
+    
+    //Use this function to run the dapp locally
+    function updateCheckPrice() public view returns (uint){
+        return checkedPrice; 
+    }
 
     //at the expiration date if the buyer want to settle its option he needs to pay the remaining amount. Val
     function calculatingRemaingAmount(uint _id) public view returns (uint){
         Option memory _options = orderBook[_id];
-        uint amount = _options.amount;
-        uint premium = _options.premium;
-        uint8 sideposition = _options.sidePosition;
-        if(sideposition == 0){
-            uint total = amount * uint(checkedPrice);
-            uint remainingAmount =  total - premium;
+        _options.amount;
+        _options.premium;
+        _options.sidePosition;
+        if(_options.sidePosition == 0){
+            uint total = _options.amount * uint(checkedPrice);
+            uint remainingAmount =  total - _options.premium;
             return remainingAmount;
-        }else if(sideposition == 1){
-            uint remainingAmount = amount * uint(checkedPrice);
+        }else if(_options.sidePosition == 1){
+            uint remainingAmount = _options.amount * uint(checkedPrice);
             return remainingAmount;
         }else{
             string memory message = "error";
@@ -247,13 +245,10 @@ contract OptionDex is PriceConsumerV3 {
     //At this poin the DAPP called the Approve function in the CRG Token
     function _sendRemainingAmountToInitiator(uint _id) internal {
         Option memory _options = orderBook[_id];
-        uint8 sidePosition = _options.sidePosition;
-        address _buyer = _options.buyer;
-        address _initiator = _options.initiator;
         uint remainingAmount = calculatingRemaingAmount(_id);
-        if(sidePosition == 0){
-            IERC20(Token).transferFrom(_buyer, _initiator, remainingAmount);
-        }else if(sidePosition == 1){
+        if(_options.sidePosition == 0){
+            IERC20(Token).transferFrom(_options.buyer, _options.initiator, remainingAmount);
+        }else if(_options.sidePosition == 1){
             (bool sent, bytes memory data) = address(this).call{value: remainingAmount}("");
             require(sent, "Failed to send Native");
         }else{
@@ -267,18 +262,14 @@ contract OptionDex is PriceConsumerV3 {
     //if the buyer settles the option, the contract transfers the native token to the buyer(call) or ERC20(put)
     function _releaseAssetsToBuyer(uint _id) internal {
         Option memory _options = orderBook[_id];
-        uint _amount = _options.amount;
-        uint _futureprice = _options.futurePrice;
-        uint8 _sidePosition = _options.sidePosition;
-        address payable _buyer = _options.buyer;
-        address payable _initiator = _options.initiator;
-        if(_sidePosition == 0){
-            (bool sent, bytes memory data) = address(this).call{value: _amount}("");
+        
+        if(_options.sidePosition == 0){
+            (bool sent, bytes memory data) = address(this).call{value: _options.amount}("");
             require(sent, "Failed to send Native");
-            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _amount;
-        }else if(_sidePosition == 1){
-            uint _value = _amount * _futureprice;
-            IERC20(Token).transfer(_buyer, _value);
+            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
+        }else if(_options.sidePosition == 1){
+            uint _value = _options.amount * _options.futurePrice;
+            IERC20(Token).transfer(_options.buyer, _value);
             allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
         }else{
             string memory message = 'error';
@@ -292,18 +283,14 @@ contract OptionDex is PriceConsumerV3 {
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
         orderBook[_id].executed = true;
-        uint _amount = _options.amount;
-        uint _futureprice = _options.futurePrice;
-        address _initiator = _options.initiator;
-        uint8 _sidePosition = _options.sidePosition;
         
-        if(_sidePosition == 0){
-            (bool sent, bytes memory data) = _initiator.call{value: _amount}("");
+        if(_options.sidePosition == 0){
+            (bool sent, bytes memory data) = _options.initiator.call{value: _options.amount}("");
             require(sent, "Failed to send Native");
-            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _amount;
-        }else if(_sidePosition == 1){
-            uint _value = _amount * _futureprice;
-            IERC20(Token).transfer(_initiator, _value);
+            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _options.amount;
+        }else if(_options.sidePosition == 1){
+            uint _value = _options.amount * _options.futurePrice;
+            IERC20(Token).transfer(_options.initiator, _value);
             allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] + _value;
         }
         _options.initiator = payable (0x0000000000000000000000000000000000000000);
@@ -312,38 +299,36 @@ contract OptionDex is PriceConsumerV3 {
     
     function Settlement (uint _id) public {
         Option storage _options = orderBook[_id];
-        uint _futureprice = _options.futurePrice;
-        uint8 _sidePosition = _options.sidePosition;
+        
         uint _spotPrice = uint(updateCheckPrice());
-        address _initiator = _options.initiator;
-        uint _amount = _options.amount;
-        uint _value = _amount * _futureprice;
-        if(_sidePosition == 0) {
-            if(_spotPrice >= _futureprice){
-                _options.expired = true;
-                (bool sent, bytes memory data) = _initiator.call{value: _amount}("");
-                require(sent, "Failed to send Native");
-                allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _amount;
-                availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount;
-            }else{
-                _options.expired = true;
-                _sendRemainingAmountToInitiator(_id);
-                _releaseAssetsToBuyer(id);
-            }
-        }else if(_sidePosition == 1){
-            if(_spotPrice >= _futureprice){
-                _options.expired = true;
-                allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
-                availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _value;
-                IERC20(Token).transfer(_initiator, _value);
-            }else{
-                _options.expired = true;
-                _sendRemainingAmountToInitiator(_id);
-                _releaseAssetsToBuyer(id);
-            }
-        }else{
-            string memory message = 'error';
-        }
+        
+        uint _value = _options.amount * _options.futurePrice;
+        // if(_options.sidePosition == 0) {
+        //     if(_spotPrice >= _options.futurePrice){
+        //         _options.expired = true;
+        //         (bool sent, bytes memory data) = _options.initiator.call{value: _options.amount}("");
+        //         require(sent, "Failed to send Native");
+        //         allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
+        //         availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount;
+        //     }else{
+        //         _options.expired = true;
+        //         _sendRemainingAmountToInitiator(_id);
+        //         _releaseAssetsToBuyer(id);
+        //     }
+        // }else if(_options.sidePosition == 1){
+        //     if(_spotPrice >= _options.futurePrice){
+        //         _options.expired = true;
+        //         allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
+        //         availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _value;
+        //         IERC20(Token).transfer(_options.initiator, _value);
+        //     }else{
+        //         _options.expired = true;
+        //         _sendRemainingAmountToInitiator(_id);
+        //         _releaseAssetsToBuyer(id);
+        //     }
+        // }else{
+        //     string memory message = 'error';
+        // }
     }
 }
 
