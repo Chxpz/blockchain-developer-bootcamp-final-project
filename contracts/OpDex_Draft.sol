@@ -49,9 +49,6 @@ contract OptionDex is PriceConsumerV3 {
 
     mapping(address => uint) public allocatedMargin;
 
-    //control the premium paid by each user in each individual position
-    mapping(address => mapping(uint =>bool)) public premiumPaid; 
-
     //keep a track on the user position in the system 
     //mapping(address => mapping(uint => Option[])) public userPositions;
 
