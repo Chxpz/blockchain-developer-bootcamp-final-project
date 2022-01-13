@@ -148,12 +148,11 @@ contract OptionDex is PriceConsumerV3 {
             availableMarginCall[msg.sender] = availableMarginCall[msg.sender] - _amount; //updates the userMargin
             allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _amount;
         }else if(_sidePosition == 1){
-            require(_amount <= availableMarginPut[msg.sender], 'Not enough margin put');
-            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] - _amount; //updates the userMargin
-            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] + _amount;
+            require((_amount * _futurePrice) <= availableMarginPut[msg.sender], 'Not enough margin put');
+            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] - (_amount * _futurePrice); //updates the userMargin
+            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] + (_amount * _futurePrice);
         }else {
-            string message ='Should define 0 for call or 1 for put';
-            return message;
+            string memory message ='Should define 0 for call or 1 for put';
         }
         
         options.push(option); //update the options array by pushin the struct above
@@ -182,17 +181,17 @@ contract OptionDex is PriceConsumerV3 {
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
         uint _amount = _options.amount;
+        uint _futurePrice = _options.futurePrice;
         _options.initiator = payable (0x0000000000000000000000000000000000000000);
         _options.buyer = payable (0x0000000000000000000000000000000000000000);
         if(orderBook[_id].sidePosition == 0){
             availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount; //updates the userMargin
             allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _amount;
         }else if(orderBook[_id].sidePosition == 1){
-            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _amount; //updates the userMargin
-            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _amount;
+            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + (_amount * _futurePrice); //updates the userMargin
+            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - (_amount * _futurePrice);
         }else {
-            string message = 'Error';
-            return message;
+            string memory message = 'Error';
         }
     }
 
@@ -226,39 +225,64 @@ contract OptionDex is PriceConsumerV3 {
     //     return checkedPrice; 
     // }
 
-    
-
     //at the expiration date if the buyer want to settle its option he needs to pay the remaining amount. Val
     function calculatingRemaingAmount(uint _id) public view returns (uint){
         Option memory _options = orderBook[_id];
         uint amount = _options.amount;
         uint premium = _options.premium;
-        uint total = amount * uint(checkedPrice);
-        uint remainingAmount =  total - premium; 
-        return remainingAmount;
+        uint8 sideposition = _options.sidePosition;
+        if(sideposition == 0){
+            uint total = amount * uint(checkedPrice);
+            uint remainingAmount =  total - premium;
+            return remainingAmount;
+        }else if(sideposition == 1){
+            uint remainingAmount = amount * uint(checkedPrice);
+            return remainingAmount;
+        }else{
+            string memory message = "error";
+        }
     }
 
     //On the settlement event, if the buyer settles the option he needs to pays the remaining amount to the initiator using CRG Token.
     //At this poin the DAPP called the Approve function in the CRG Token
     function _sendRemainingAmountToInitiator(uint _id) internal {
         Option memory _options = orderBook[_id];
+        uint8 sidePosition = _options.sidePosition;
         address _buyer = _options.buyer;
         address _initiator = _options.initiator;
-        uint remainingAmount = calculatingRemaingAmount();
+        uint remainingAmount = calculatingRemaingAmount(_id);
+        if(sidePosition == 0){
+            IERC20(Token).transferFrom(_buyer, _initiator, remainingAmount);
+        }else if(sidePosition == 1){
+            (bool sent, bytes memory data) = address(this).call{value: remainingAmount}("");
+            require(sent, "Failed to send Native");
+        }else{
+            string memory message = "error";
+        }       
         _options.expired = true;
         _options.executed = true;
         _options.remainingAmountPaid = true;
-        IERC20(Token).transferFrom(_buyer, _initiator, remainingAmount);
     }
 
-    //if the buyer settles the option, the contract transfers the native token to the buyer
+    //if the buyer settles the option, the contract transfers the native token to the buyer(call) or ERC20(put)
     function _releaseAssetsToBuyer(uint _id) internal {
         Option memory _options = orderBook[_id];
         uint _amount = _options.amount;
+        uint _futureprice = _options.futurePrice;
+        uint8 _sidePosition = _options.sidePosition;
         address payable _buyer = _options.buyer;
         address payable _initiator = _options.initiator;
-        _buyer.transfer(_amount);
-        allocatedMargin[_initiator] = allocatedMargin[_initiator] - _amount;
+        if(_sidePosition == 0){
+            (bool sent, bytes memory data) = address(this).call{value: _amount}("");
+            require(sent, "Failed to send Native");
+            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _amount;
+        }else if(_sidePosition == 1){
+            uint _value = _amount * _futureprice;
+            IERC20(Token).transfer(_buyer, _value);
+            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
+        }else{
+            string memory message = 'error';
+        }
     }
 
     //in case a buyer paid the premium, however did not paid the remaining amount and the option is expired
@@ -269,29 +293,39 @@ contract OptionDex is PriceConsumerV3 {
         Option memory _options = orderBook[_id];
         orderBook[_id].executed = true;
         uint _amount = _options.amount;
+        uint _futureprice = _options.futurePrice;
+        address _initiator = _options.initiator;
+        uint8 _sidePosition = _options.sidePosition;
+        
+        if(_sidePosition == 0){
+            (bool sent, bytes memory data) = _initiator.call{value: _amount}("");
+            require(sent, "Failed to send Native");
+            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _amount;
+        }else if(_sidePosition == 1){
+            uint _value = _amount * _futureprice;
+            IERC20(Token).transfer(_initiator, _value);
+            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] + _value;
+        }
         _options.initiator = payable (0x0000000000000000000000000000000000000000);
         _options.buyer = payable (0x0000000000000000000000000000000000000000);
-        availableMargin[msg.sender] = availableMargin[msg.sender] + _amount; //updates the userMargin
-        allocatedMargin[msg.sender] = allocatedMargin[msg.sender] - _amount;
-
     }
     
-    //check if the position is expired: should start using blocknumber
-    //check who wons the bet. If initiator, nothing happens
-        //If buyer: buyer needs to pay the diference spot-premium(use price feed), initiator receives de money
-        //the contract send eth(one) to the buyer
     function Settlement (uint _id) public {
         Option storage _options = orderBook[_id];
-        uint spotPrice = _options.futurePrice;
-        checkedPrice = 10;
-        if(spotPrice >= uint(checkedPrice)){
-            require(remainingValueDeposited[_id] == true, 'Buyer needs to deposit the remaining value');
-            _sendRemainingValueToInitiator(_id);
-            _releaseAssetsToBuyer(_id);
-            _options.expired = true ;
-        }else{
-            _options.expired = true ;
-        }     
+        uint _futureprice = _options.futurePrice;
+        uint8 _sidePosition = _options.sidePosition;
+        uint _spotPrice = uint(updateCheckPrice());
+        address _initiator = _options.initiator;
+        uint amount = _options.amount;
+        if(_sidePosition == 0) {
+            if(_spotPrice >= _futureprice){
+                _options.expired = true ;
+                (bool sent, bytes memory data) = _initiator.call{value: _amount}("");
+                require(sent, "Failed to send Native");
+                allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _amount;
+                
+            }
+        }
     }
 }
 
