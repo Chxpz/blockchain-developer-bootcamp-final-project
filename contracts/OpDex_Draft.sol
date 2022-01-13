@@ -316,15 +316,33 @@ contract OptionDex is PriceConsumerV3 {
         uint8 _sidePosition = _options.sidePosition;
         uint _spotPrice = uint(updateCheckPrice());
         address _initiator = _options.initiator;
-        uint amount = _options.amount;
+        uint _amount = _options.amount;
+        uint _value = _amount * _futureprice;
         if(_sidePosition == 0) {
             if(_spotPrice >= _futureprice){
-                _options.expired = true ;
+                _options.expired = true;
                 (bool sent, bytes memory data) = _initiator.call{value: _amount}("");
                 require(sent, "Failed to send Native");
-                allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _amount;
-                
+                allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _amount;
+                availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount;
+            }else{
+                _options.expired = true;
+                _sendRemainingAmountToInitiator(_id);
+                _releaseAssetsToBuyer(id);
             }
+        }else if(_sidePosition == 1){
+            if(_spotPrice >= _futureprice){
+                _options.expired = true;
+                allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
+                availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _value;
+                IERC20(Token).transfer(_initiator, _value);
+            }else{
+                _options.expired = true;
+                _sendRemainingAmountToInitiator(_id);
+                _releaseAssetsToBuyer(id);
+            }
+        }else{
+            string memory message = 'error';
         }
     }
 }
