@@ -26,7 +26,7 @@ contract OptionDex is PriceConsumerV3 {
     struct Option {
         uint _id; //each option has an id
         uint amount; //the amount of native token sold/bought in the option
-        string sidePosition; //call or 
+        uint8 sidePosition; //call(0) or put(1) 
         address payable initiator; //who starts the option by selling a put or a call
         address payable buyer; //who purchases the option from the initiator
         uint placedDate;//date when the option is created
@@ -56,15 +56,32 @@ contract OptionDex is PriceConsumerV3 {
     //keep a track on the user position in the system 
     //mapping(address => mapping(uint => Option[])) public userPositions;
 
-    //receives the user deposit in the native token and updates the user margin
+    function SetexpirationTime(uint _expirationTime) public {
+        expirationTime = _expirationTime;
+    }
+
+    function getExpirationTime() public returns (uint){
+        return expirationTime;
+    }
+
+    //receives the user deposit in the native token and updates the availableMarginCall
     function deposit(uint _amount) payable public{
-        availableMargin[msg.sender] = availableMargin[msg.sender] + _amount; 
+        availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount; 
     }
 
     //only if the user has available margin, he can withdraw from the dapp
-    function withdrawMargin(address payable _to, uint _amount) public payable checkMargin(_amount) {
+    function withdrawMarginCall(address payable _to, uint _amount) public payable checkMarginCall(_amount) {
         (bool sent, bytes memory data) = _to.call{value: _amount}("");
         require(sent, "Failed to send One");
+    }
+
+    function depositMarginPut(uint _amount) public{
+        IERC20(Token).transferFrom(msg.sender, address(this), _amount);
+        availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _amount;
+    }
+
+    function withdrawMarginPut(uint _amount) public checkMarginPut(_amount){
+        IERC20(Token).transfer(msg.sender, _amount);
     }
 
     //set the CRG Token to be used to purchase options
@@ -73,8 +90,13 @@ contract OptionDex is PriceConsumerV3 {
     }
 
     //Check if the user has available margin to perform operations
-    modifier checkMargin(uint amount){
-        require(amount == availableMargin[msg.sender], 'User has not enough margin to perform this operation');
+    modifier checkMarginCall(uint amount){
+        require(amount <= availableMarginCall[msg.sender], 'User has not enough margin to perform this operation');
+        _;
+    }
+
+    modifier checkMarginPut(uint amount){
+        require(amount <= availableMarginPut[msg.sender], 'User has not enough margin to perform this operation');
         _;
     }
 
@@ -93,11 +115,11 @@ contract OptionDex is PriceConsumerV3 {
     //initialize a option position
     function initializePosition(
         uint _amount, 
-        string memory _sidePosition, 
+        uint8 _sidePosition, 
         uint8 _premium, 
         uint8 _futurePrice, 
         uint8 _expirationDate
-        ) public checkMargin(_amount){
+        ) public {
         
         //each interaction increments the id
         id = id + 1;
@@ -121,14 +143,22 @@ contract OptionDex is PriceConsumerV3 {
                 remainingAmountPaid: false
             }
         );
+        if(_sidePosition == 0){
+            require(_amount <= availableMarginCall[msg.sender], 'Not enough margin call');
+            availableMarginCall[msg.sender] = availableMarginCall[msg.sender] - _amount; //updates the userMargin
+            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _amount;
+        }else if(_sidePosition == 1){
+            require(_amount <= availableMarginPut[msg.sender], 'Not enough margin put');
+            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] - _amount; //updates the userMargin
+            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] + _amount;
+        }else {
+            string message ='Should define 0 for call or 1 for put';
+            return message;
+        }
         
-        availableMargin[msg.sender] = availableMargin[msg.sender] - _amount; //updates the userMargin
-        allocatedMargin[msg.sender] = allocatedMargin[msg.sender] + _amount;
         options.push(option); //update the options array by pushin the struct above
-        orderBook[id] = option; //update the orderBook with the option struct. This will be use in the next updates to have buy and sell functionality to the users
-        //userPositions[msg.sender] = options.push(id);//update the userPositions mapping
+        orderBook[id] = option; //update the orderBook with the option struct. This will be use in the next updates to have buy and sell functionality to the users       
 }
-
     //internal function to send the CRG Tokens from buyer to initiator when the buyer purchases the option
     //the frontend dapp needs to request to the buyer to approve this contract to spend the money on his behalf by
     //callint the Approve function in the CRG Token (ERC20 standard)
@@ -137,30 +167,37 @@ contract OptionDex is PriceConsumerV3 {
     }
 
     //called by the buyer to purchase an option    
-    function EnterPosition (uint _id, uint8 _premiumToPay) payable public notExpired(_id) notExecuted(_id){
+    function EnterPosition (uint _id) public notExpired(_id) notExecuted(_id){
         Option memory _options = orderBook[_id];//initialize the option based on its recored in the orderBook
         address _initiator = _options.initiator;//instatiate the initiator to receive the premium payment
-        uint8 _premium = _options.premium; //instatiate the premium value
-        require(_premium <= _premiumToPay, 'Premium wrong'); //the buyer can pay the same or higher value than asked by the initiator, not less
-        _buyingTheOption(msg.sender, _initiator, _premiumToPay);//call the internal function to send the CRG Tokens (premium payment) to the initiator
+        uint8 premium = _options.premium; //instatiate the premium value
+        _buyingTheOption(msg.sender, _initiator, premium);//call the internal function to send the CRG Tokens (premium payment) to the initiator
         _options.premiumPaid = true; //once Paid set the premium paid to true
         _options.buyer = payable (msg.sender);//update the orderBook setting the buyer as msg.sender
-        //userPositions[msg.sender] = id[orderBook[id]];//update the userPositions mapping
     }
 
     //if the initiator wants to shutdown the option as long as no one purchased it
-    function shutDownOption(uint _id) public {
+    function shutDownOption(uint _id) public notExpired(_id) notExecuted(_id) {
         require(!orderBook[_id].premiumPaid, 'Option can not be removed');
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
         uint _amount = _options.amount;
         _options.initiator = payable (0x0000000000000000000000000000000000000000);
         _options.buyer = payable (0x0000000000000000000000000000000000000000);
-        availableMargin[msg.sender] = availableMargin[msg.sender] + _amount; //updates the userMargin
-        allocatedMargin[msg.sender] = allocatedMargin[msg.sender] - _amount;
+        if(orderBook[_id].sidePosition == 0){
+            availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount; //updates the userMargin
+            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _amount;
+        }else if(orderBook[_id].sidePosition == 1){
+            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _amount; //updates the userMargin
+            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _amount;
+        }else {
+            string message = 'Error';
+            return message;
+        }
     }
 
     //Chainlink PriceConsumer Returns the latest price for the ONE/USD testNet
+    //shoud comment this function to run the dapp locally
     function getLatestPrice() public view virtual override returns (int) {
         (
             uint80 roundID, 
@@ -173,10 +210,23 @@ contract OptionDex is PriceConsumerV3 {
     }
 
     //update the state variable checkedPrice
+    //shoud comment this function to run the dapp locally
     function updateCheckPrice() public returns (int){
         checkedPrice = getLatestPrice();
         return checkedPrice; 
     }
+
+    // //Use this function to run the dapp locally
+    // function setCheckPrice(uint _inputedPrice) public{
+    //     checkedPrice = _inputedPrice;
+    // }
+    
+    // //Use this function to run the dapp locally
+    // function updateCheckPrice() public returns (int){
+    //     return checkedPrice; 
+    // }
+
+    
 
     //at the expiration date if the buyer want to settle its option he needs to pay the remaining amount. Val
     function calculatingRemaingAmount(uint _id) public view returns (uint){
@@ -213,15 +263,17 @@ contract OptionDex is PriceConsumerV3 {
 
     //in case a buyer paid the premium, however did not paid the remaining amount and the option is expired
     //the initiator is able to release allocated margin
-    function releaseAllocatedMarginForAPremiumPaidExpiredOption(uint _id) public{
+    function releaseAllocatedMarginForAPremiumPaidExpiredOption(uint _id) public notExecuted(_id){
         require(orderBook[_id].remainingAmountPaid == true, 'Option can not be removed');
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
+        orderBook[_id].executed = true;
         uint _amount = _options.amount;
         _options.initiator = payable (0x0000000000000000000000000000000000000000);
         _options.buyer = payable (0x0000000000000000000000000000000000000000);
         availableMargin[msg.sender] = availableMargin[msg.sender] + _amount; //updates the userMargin
         allocatedMargin[msg.sender] = allocatedMargin[msg.sender] - _amount;
+
     }
     
     //check if the position is expired: should start using blocknumber
