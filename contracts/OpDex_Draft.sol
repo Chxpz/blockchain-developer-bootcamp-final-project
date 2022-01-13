@@ -12,31 +12,31 @@ contract OptionDex {
     //     priceFeed = AggregatorV3Interface(0xcEe686F89bc0dABAd95AEAAC980aE1d97A075FAD);
     // }
 
-    event OptionInit (uint optionId , address indexed initiator, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint expirationDate);
-    event PositionPurchased (uint optionId , address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint purchasedDate, uint expirationDate);
-    event LiquidationOverCollateralization(uint optionId, address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint LiquidationDate,
-    uint expirationDate, address indexed keeper);
+    // event OptionInit (uint optionId , address indexed initiator, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint expirationDate);
+    // event PositionPurchased (uint optionId , address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint purchasedDate, uint expirationDate);
+    // event LiquidationOverCollateralization(uint optionId, address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint LiquidationDate,
+    // uint expirationDate, address indexed keeper);
 
     uint id;//id asigned to each option
     address internal Token;// CRG Token used in the Dapp
     uint checkedPrice;//price verified by the chainlink priceFeed at the expiration date
     uint expirationTime = 5760;//average blocks produced per day
 
-
+    // scope to avoid stack too deep errors
     struct Option {
         uint _id; //each option has an id
-        uint amount; //the amount of native token sold/bought in the option
-        uint8 sidePosition; //call(0) or put(1) 
-        address payable initiator; //who starts the option by selling a put or a call
-        address payable buyer; //who purchases the option from the initiator
-        uint placedDate;//date when the option is created
-        uint expirationDate; //the date when the option can be settled
+        uint8 futurePrice;//future price. The price of the native token at the option expiration date
         uint8 premium; //value paid by the buyer to the initiator to have the right over the option
+        uint8 amount; //the amount of native token sold/bought in the option
+        uint8 sidePosition; //call(0) or put(1) 
+        uint256 placedDate;//date when the option is created
+        uint256 expirationDate; //the date when the option can be settled
         bool premiumPaid;//control if the premium was paid
-        uint futurePrice;//future price. The price of the native token at the option expiration date 
         bool expired;//based on the expirationDate the option can be settled (if expired) or not
         bool executed; //true if the option has been settled
-        bool remainingAmountPaid;
+        // bool remainingAmountPaid;
+        address payable initiator; //who starts the option by selling a put or a call
+        address payable buyer; //who purchases the option from the initiator
     }
     //stores all the updated order in the system
     mapping(uint => Option) public orderBook;
@@ -69,7 +69,7 @@ contract OptionDex {
         availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount; 
     }
 
-    //only if the user has available margin, he can withdraw from the dapp
+    // //only if the user has available margin, he can withdraw from the dapp
     function withdrawMarginCall(address payable _to, uint _amount) public payable checkMarginCall(_amount) {
         (bool sent, bytes memory data) = _to.call{value: _amount}("");
         require(sent, "Failed to send One");
@@ -110,15 +110,15 @@ contract OptionDex {
         _;
     }
 
-    Option[] public options;//creates the options array that will be populated with the struct format in the initializePosition
+    uint[] public options;//creates the options array that will be populated with the struct format in the initializePosition
 
     //initialize a option position
     function initializePosition(
-        uint _amount, 
+        uint8 _amount, 
         uint8 _sidePosition, 
         uint8 _premium, 
         uint8 _futurePrice, 
-        uint8 _expirationDate
+        uint256 _expirationDate
         ) public {
         
         //each interaction increments the id
@@ -139,8 +139,8 @@ contract OptionDex {
                 placedDate : block.number, //the block number when the option was created
                 expirationDate : _expirationDate * expirationTime, //up to the user when create the option. Need to informed in days.
                 expired : false, //just creat the option
-                executed: false, //just creat the option
-                remainingAmountPaid: false
+                executed: false //just creat the option
+                // remainingAmountPaid: false
             }
         );
         if(_sidePosition == 0){
@@ -155,12 +155,12 @@ contract OptionDex {
             string memory message ='Should define 0 for call or 1 for put';
         }
         
-        options.push(option); //update the options array by pushin the struct above
+        options.push(option._id); //update the options array by pushin the struct above
         orderBook[id] = option; //update the orderBook with the option struct. This will be use in the next updates to have buy and sell functionality to the users       
 }
-    //internal function to send the CRG Tokens from buyer to initiator when the buyer purchases the option
-    //the frontend dapp needs to request to the buyer to approve this contract to spend the money on his behalf by
-    //callint the Approve function in the CRG Token (ERC20 standard)
+    // internal function to send the CRG Tokens from buyer to initiator when the buyer purchases the option
+    // the frontend dapp needs to request to the buyer to approve this contract to spend the money on his behalf by
+    // callint the Approve function in the CRG Token (ERC20 standard)
     function _buyingTheOption(address _buyer, address _initiator, uint8 _premium) internal{
         IERC20(Token).transferFrom(_buyer, _initiator, _premium); //standard ERC20 transferFrom function
     }
@@ -193,8 +193,8 @@ contract OptionDex {
         }
     }
 
-    //Chainlink PriceConsumer Returns the latest price for the ONE/USD testNet
-    //shoud comment this function to run the dapp locally
+    // Chainlink PriceConsumer Returns the latest price for the ONE/USD testNet
+    // shoud comment this function to run the dapp locally
     // function getLatestPrice() public view virtual override returns (int) {
     //     (
     //         uint80 roundID, 
@@ -241,8 +241,8 @@ contract OptionDex {
         }
     }
 
-    //On the settlement event, if the buyer settles the option he needs to pays the remaining amount to the initiator using CRG Token.
-    //At this poin the DAPP called the Approve function in the CRG Token
+    // On the settlement event, if the buyer settles the option he needs to pays the remaining amount to the initiator using CRG Token.
+    // At this poin the DAPP called the Approve function in the CRG Token
     function _sendRemainingAmountToInitiator(uint _id) internal {
         Option memory _options = orderBook[_id];
         uint remainingAmount = calculatingRemaingAmount(_id);
@@ -256,7 +256,7 @@ contract OptionDex {
         }       
         _options.expired = true;
         _options.executed = true;
-        _options.remainingAmountPaid = true;
+        // _options.remainingAmountPaid = true;
     }
 
     //if the buyer settles the option, the contract transfers the native token to the buyer(call) or ERC20(put)
@@ -276,10 +276,10 @@ contract OptionDex {
         }
     }
 
-    //in case a buyer paid the premium, however did not paid the remaining amount and the option is expired
-    //the initiator is able to release allocated margin
+    // in case a buyer paid the premium, however did not paid the remaining amount and the option is expired
+    // the initiator is able to release allocated margin
     function releaseAllocatedMarginForAPremiumPaidExpiredOption(uint _id) public notExecuted(_id){
-        require(orderBook[_id].remainingAmountPaid == true, 'Option can not be removed');
+        // require(orderBook[_id].remainingAmountPaid == true, 'Option can not be removed');
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
         orderBook[_id].executed = true;
@@ -303,32 +303,32 @@ contract OptionDex {
         uint _spotPrice = uint(updateCheckPrice());
         
         uint _value = _options.amount * _options.futurePrice;
-        // if(_options.sidePosition == 0) {
-        //     if(_spotPrice >= _options.futurePrice){
-        //         _options.expired = true;
-        //         (bool sent, bytes memory data) = _options.initiator.call{value: _options.amount}("");
-        //         require(sent, "Failed to send Native");
-        //         allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
-        //         availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount;
-        //     }else{
-        //         _options.expired = true;
-        //         _sendRemainingAmountToInitiator(_id);
-        //         _releaseAssetsToBuyer(id);
-        //     }
-        // }else if(_options.sidePosition == 1){
-        //     if(_spotPrice >= _options.futurePrice){
-        //         _options.expired = true;
-        //         allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
-        //         availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _value;
-        //         IERC20(Token).transfer(_options.initiator, _value);
-        //     }else{
-        //         _options.expired = true;
-        //         _sendRemainingAmountToInitiator(_id);
-        //         _releaseAssetsToBuyer(id);
-        //     }
-        // }else{
-        //     string memory message = 'error';
-        // }
+        if(_options.sidePosition == 0) {
+            if(_spotPrice >= _options.futurePrice){
+                _options.expired = true;
+                (bool sent, bytes memory data) = _options.initiator.call{value: _options.amount}("");
+                require(sent, "Failed to send Native");
+                allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
+                availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount;
+            }else{
+                _options.expired = true;
+                _sendRemainingAmountToInitiator(_id);
+                _releaseAssetsToBuyer(id);
+            }
+        }else if(_options.sidePosition == 1){
+            if(_spotPrice >= _options.futurePrice){
+                _options.expired = true;
+                allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
+                availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _value;
+                IERC20(Token).transfer(_options.initiator, _value);
+            }else{
+                _options.expired = true;
+                _sendRemainingAmountToInitiator(_id);
+                _releaseAssetsToBuyer(id);
+            }
+        }else{
+            string memory message = 'error';
+        }
     }
 }
 
