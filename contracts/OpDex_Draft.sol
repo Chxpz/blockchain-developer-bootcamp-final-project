@@ -42,13 +42,17 @@ contract OptionDex is PriceConsumerV3 {
     mapping(uint => Option) public orderBook;
     
     //the user needs to deposit some native token to starts the operation
-    //user margin controls the margin to allow users to initiate options, either call or put
+    //user margin controls the margin to allow users to initiate options
     //every deposit increases the margin, all option initialization reduces the margin
-    //when a option is not exercised the initiator has its margin released
-    mapping(address => uint) public availableMargin;
+    //when a option is not settled at the expiration date the initiator has its margin released
+    //to create call options the initiator needs to deposit the native token
+    //to create put options the initiator needs to deposit an stable coin
+    mapping(address => uint) public availableMarginCall;
+    mapping(address => uint) public allocatedMarginCall;
 
-    mapping(address => uint) public allocatedMargin;
-
+    mapping(address => uint) public availableMarginPut;
+    mapping(address => uint) public allocatedMarginPut;
+    
     //keep a track on the user position in the system 
     //mapping(address => mapping(uint => Option[])) public userPositions;
 
