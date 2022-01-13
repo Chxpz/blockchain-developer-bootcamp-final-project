@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.2;
 
+import "./PriceConsumerV3.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 
-contract OptionDex{
+contract OptionDex is PriceConsumerV3 {
+
+    //one - one/usd
+    constructor() {
+        priceFeed = AggregatorV3Interface(0xcEe686F89bc0dABAd95AEAAC980aE1d97A075FAD);
+    }
 
     event OptionInit (uint optionId , address indexed initiator, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint expirationDate);
     event PositionPurchased (uint optionId , address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint purchasedDate, uint expirationDate);
     event LiquidationOverCollateralization(uint optionId, address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint LiquidationDate,
     uint expirationDate, address indexed keeper);
 
-    uint id;
-    address internal Token;
+    uint id;//id asigned to each option
+    address internal Token;// CRG Token used in the Dapp
+    int checkedPrice;//price verified by the chainlink priceFeed at the expiration date
     
     struct Option {
         uint _id; //each option has an id
@@ -23,7 +30,7 @@ contract OptionDex{
         uint8 expirationDate; //the date when the option can be settled
         uint8 premium; //value paid by the buyer to the initiator to have the right over the option
         bool premiumPaid;//control if the premium was paid
-        uint8 futurePrice;//future price. The price of the native token at the option expiration date 
+        uint futurePrice;//future price. The price of the native token at the option expiration date 
         bool expired;//based on the expirationDate the option can be settled (if expired) or not
     }
     //stores all the updated order in the system
@@ -39,7 +46,7 @@ contract OptionDex{
     mapping(address => mapping(uint =>bool)) public premiumPaid; 
 
     //keep a track on the user position in the system 
-    mapping(address => mapping(uint => orderBook)) public userPositions;
+    //mapping(address => mapping(uint => Option[])) public userPositions;
     
     //check if the remaining amount has been paid by the buyer to the initiator in order to exercise the option
     mapping(uint => bool) public remainingValueDeposited;
@@ -62,7 +69,7 @@ contract OptionDex{
 
     //Check if the user has available margin to perform operations
     modifier checkMargin(uint amount){
-        require(amount <= userMargin[msg.sender], 'User has not enough margin to perform this operation');
+        require(amount == userMargin[msg.sender], 'User has not enough margin to perform this operation');
         _;
     }
 
@@ -88,7 +95,7 @@ contract OptionDex{
                 amount : _amount, //up to the user when create the option
                 sidePosition : _sidePosition, //up to the user when create the option
                 initiator : payable (msg.sender),
-                buyer: payable (0x0000000000000000000000000000000000000000),//the buyer is not set, will be set once some user buys the option
+                buyer: payable (0x0000000000000000000000000000000000000000),//the buyer is not set, will be set once some user buys the option. See function EnterPosition
                 premium : _premium, //up to the user when create the option
                 premiumPaid : false, //as the option is being created at this point there is no premium paid
                 futurePrice : _futurePrice, //up to the user when create the option
@@ -100,7 +107,7 @@ contract OptionDex{
         userMargin[msg.sender] = userMargin[msg.sender] - _amount; //updates the userMargin
         options.push(option); //update the options array by pushin the struct above
         orderBook[id] = option; //update the orderBook with the option struct. This will be use in the next updates to have buy and sell functionality to the users
-        userPositions[msg.sender] = id[orderBook[id]];//update the userPositions mapping
+        //userPositions[msg.sender] = options.push(id);//update the userPositions mapping
 }
 
     //internal function to send the CRG Tokens from buyer to initiator when the buyer purchases the option
@@ -110,39 +117,56 @@ contract OptionDex{
         IERC20(Token).transferFrom(_buyer, _initiator, _premium); //standard ERC20 transferFrom function
     }
 
+    //called by the buyer to purchase an option    
     function EnterPosition (uint _id, uint8 _premiumToPay) payable public {
-        Option storage _options = orderBook[_id];
-        address _initiator = _options.initiator;
-        uint8 _premium = _options.premium;
-        require(_premium == _premiumToPay, 'Premium wrong');
-        _buyingTheOption(msg.sender, _initiator, _premiumToPay);
-        _options.premiumPaid = true;
-        _options.buyer = payable (msg.sender);
-        
+        Option memory _options = orderBook[_id];//initialize the option based on its recored in the orderBook
+        address _initiator = _options.initiator;//instatiate the initiator to receive the premium payment
+        uint8 _premium = _options.premium; //instatiate the premium value
+        require(_premium <= _premiumToPay, 'Premium wrong'); //the buyer can pay the same or higher value than asked by the initiator, not less
+        _buyingTheOption(msg.sender, _initiator, _premiumToPay);//call the internal function to send the CRG Tokens (premium payment) to the initiator
+        _options.premiumPaid = true; //once Paid set the premium paid to true
+        _options.buyer = payable (msg.sender);//update the orderBook setting the buyer as msg.sender
+        //userPositions[msg.sender] = id[orderBook[id]];//update the userPositions mapping
     }
 
-    uint8 checkedPrice;
-    function updateCheckPrice() public returns (uint){
-        uint8 _checkedPrice = 10;
-        checkedPrice = _checkedPrice;
+    
+    //Chainlink PriceConsumer Returns the latest price for the ONE/USD testNet
+    function getLatestPrice() public view virtual override returns (int) {
+        (
+            uint80 roundID, 
+            int price,
+            uint startedAt,
+            uint timeStamp,
+            uint80 answeredInRound
+        ) = priceFeed.latestRoundData();
+        return price;
+    }
+
+    //update the state variable checkedPrice
+    function updateCheckPrice() public returns (int){
+        checkedPrice = getLatestPrice();
         return checkedPrice; 
     }
 
-
+    //at the expiration date if the buyer want to settle its option he needs to pay the remaining amount. Val
     function calculatingRemaingAmount(uint _id) public view returns (uint){
-        Option storage _options = orderBook[_id];
-        uint8 spotPrice = _options.futurePrice;
-        uint8 remainingAmount = checkedPrice - spotPrice; 
+        Option memory _options = orderBook[_id];
+        uint amount = _options.amount;
+        uint premium = _options.premium;
+        uint total = amount * uint(checkedPrice);
+        uint remainingAmount =  total - premium; 
         return remainingAmount;
     }
 
-    function _sendRemainingValueToInitiator(uint _id) internal {
-        Option storage _options = orderBook[_id];
+    //On the settlement event, if the buyer settles the option he needs to pays the remaining amount to the initiator using CRG Token.
+    //At this poin the DAPP called the Approve function in the CRG Token
+    function _sendRemainingAmountToInitiator(uint _id) internal {
+        Option memory _options = orderBook[_id];
         address _buyer = _options.buyer;
         address _initiator = _options.initiator;
-        uint8 _premium = _options.premium;
-        IERC20(Token).transferFrom(_buyer, _initiator, _premium);
-        }
+        uint remainingAmount = calculatingRemaingAmount();
+        IERC20(Token).transferFrom(_buyer, _initiator, remainingAmount);
+    }
 
     function _releaseAssetsToBuyer(uint _id) internal {
         Option storage _options = orderBook[_id];
@@ -159,9 +183,9 @@ contract OptionDex{
         //the contract send eth(one) to the buyer
     function Settlement (uint _id) public {
         Option storage _options = orderBook[_id];
-        uint8 spotPrice = _options.futurePrice;
+        uint spotPrice = _options.futurePrice;
         checkedPrice = 10;
-        if(spotPrice >= checkedPrice){
+        if(spotPrice >= uint(checkedPrice)){
             require(remainingValueDeposited[_id] == true, 'Buyer needs to deposit the remaining value');
             _sendRemainingValueToInitiator(_id);
             _releaseAssetsToBuyer(_id);
