@@ -36,6 +36,7 @@ contract OptionDex is PriceConsumerV3 {
         uint futurePrice;//future price. The price of the native token at the option expiration date 
         bool expired;//based on the expirationDate the option can be settled (if expired) or not
         bool executed; //true if the option has been settled
+        bool remainingAmountPaid;
     }
     //stores all the updated order in the system
     mapping(uint => Option) public orderBook;
@@ -115,7 +116,8 @@ contract OptionDex is PriceConsumerV3 {
                 placedDate : block.number, //the block number when the option was created
                 expirationDate : _expirationDate * expirationTime, //up to the user when create the option. Need to informed in days.
                 expired : false, //just creat the option
-                executed: false //just creat the option
+                executed: false, //just creat the option
+                remainingAmountPaid: false
             }
         );
         
@@ -145,7 +147,18 @@ contract OptionDex is PriceConsumerV3 {
         //userPositions[msg.sender] = id[orderBook[id]];//update the userPositions mapping
     }
 
-    
+    //if the initiator wants to shutdown the option as long as no one purchased it
+    function shutDownOption(uint _id) public {
+        require(!orderBook[_id].premiumPaid, 'Option can not be removed');
+        require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
+        Option memory _options = orderBook[_id];
+        uint _amount = _options.amount;
+        _options.initiator = payable (0x0000000000000000000000000000000000000000);
+        _options.buyer = payable (0x0000000000000000000000000000000000000000);
+        availableMargin[msg.sender] = availableMargin[msg.sender] + _amount; //updates the userMargin
+        allocatedMargin[msg.sender] = allocatedMargin[msg.sender] - _amount;
+    }
+
     //Chainlink PriceConsumer Returns the latest price for the ONE/USD testNet
     function getLatestPrice() public view virtual override returns (int) {
         (
@@ -183,6 +196,7 @@ contract OptionDex is PriceConsumerV3 {
         uint remainingAmount = calculatingRemaingAmount();
         _options.expired = true;
         _options.executed = true;
+        _options.remainingAmountPaid = true;
         IERC20(Token).transferFrom(_buyer, _initiator, remainingAmount);
     }
 
@@ -193,8 +207,21 @@ contract OptionDex is PriceConsumerV3 {
         address payable _buyer = _options.buyer;
         address payable _initiator = _options.initiator;
         _buyer.transfer(_amount);
-        userMargin[_initiator] = userMargin[_initiator] - _amount;
-        }
+        allocatedMargin[_initiator] = allocatedMargin[_initiator] - _amount;
+    }
+
+    //in case a buyer paid the premium, however did not paid the remaining amount and the option is expired
+    //the initiator is able to release allocated margin
+    function releaseAllocatedMarginForAPremiumPaidExpiredOption(uint _id) public{
+        require(orderBook[_id].remainingAmountPaid == true, 'Option can not be removed');
+        require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
+        Option memory _options = orderBook[_id];
+        uint _amount = _options.amount;
+        _options.initiator = payable (0x0000000000000000000000000000000000000000);
+        _options.buyer = payable (0x0000000000000000000000000000000000000000);
+        availableMargin[msg.sender] = availableMargin[msg.sender] + _amount; //updates the userMargin
+        allocatedMargin[msg.sender] = allocatedMargin[msg.sender] - _amount;
+    }
     
     //check if the position is expired: should start using blocknumber
     //check who wons the bet. If initiator, nothing happens
