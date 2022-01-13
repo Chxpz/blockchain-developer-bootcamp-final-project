@@ -20,18 +20,22 @@ contract OptionDex is PriceConsumerV3 {
     uint id;//id asigned to each option
     address internal Token;// CRG Token used in the Dapp
     int checkedPrice;//price verified by the chainlink priceFeed at the expiration date
-    
+    uint expirationTime = 5760;//average blocks produced per day
+
+
     struct Option {
         uint _id; //each option has an id
         uint amount; //the amount of native token sold/bought in the option
         string sidePosition; //call or 
         address payable initiator; //who starts the option by selling a put or a call
         address payable buyer; //who purchases the option from the initiator
-        uint8 expirationDate; //the date when the option can be settled
+        uint placedDate;//date when the option is created
+        uint expirationDate; //the date when the option can be settled
         uint8 premium; //value paid by the buyer to the initiator to have the right over the option
         bool premiumPaid;//control if the premium was paid
         uint futurePrice;//future price. The price of the native token at the option expiration date 
         bool expired;//based on the expirationDate the option can be settled (if expired) or not
+        bool executed; //true if the option has been settled
     }
     //stores all the updated order in the system
     mapping(uint => Option) public orderBook;
@@ -40,26 +44,25 @@ contract OptionDex is PriceConsumerV3 {
     //user margin controls the margin to allow users to initiate options, either call or put
     //every deposit increases the margin, all option initialization reduces the margin
     //when a option is not exercised the initiator has its margin released
-    mapping(address => uint) public userMargin;
+    mapping(address => uint) public availableMargin;
+
+    mapping(address => uint) public allocatedMargin;
 
     //control the premium paid by each user in each individual position
     mapping(address => mapping(uint =>bool)) public premiumPaid; 
 
     //keep a track on the user position in the system 
     //mapping(address => mapping(uint => Option[])) public userPositions;
-    
-    //check if the remaining amount has been paid by the buyer to the initiator in order to exercise the option
-    mapping(uint => bool) public remainingValueDeposited;
 
     //receives the user deposit in the native token and updates the user margin
-    function deposit() payable public{
-        userMargin[msg.sender] = userMargin[msg.sender] + msg.value; 
+    function deposit(uint _amount) payable public{
+        availableMargin[msg.sender] = availableMargin[msg.sender] + _amount; 
     }
 
     //only if the user has available margin, he can withdraw from the dapp
     function withdrawMargin(address payable _to, uint _amount) public payable checkMargin(_amount) {
         (bool sent, bytes memory data) = _to.call{value: _amount}("");
-        require(sent, "Failed to send Ether");
+        require(sent, "Failed to send One");
     }
 
     //set the CRG Token to be used to purchase options
@@ -69,7 +72,17 @@ contract OptionDex is PriceConsumerV3 {
 
     //Check if the user has available margin to perform operations
     modifier checkMargin(uint amount){
-        require(amount == userMargin[msg.sender], 'User has not enough margin to perform this operation');
+        require(amount == availableMargin[msg.sender], 'User has not enough margin to perform this operation');
+        _;
+    }
+
+    modifier notExecuted(uint _id){
+        require(!orderBook[_id].executed, 'Option alredy executed');
+        _;
+    }
+
+    modifier notExpired(uint _id){
+        require((orderBook[_id].expirationDate + 1000) <= block.number, 'Option has alredy expired'); //giving 1000 blocks bonus
         _;
     }
 
@@ -99,12 +112,15 @@ contract OptionDex is PriceConsumerV3 {
                 premium : _premium, //up to the user when create the option
                 premiumPaid : false, //as the option is being created at this point there is no premium paid
                 futurePrice : _futurePrice, //up to the user when create the option
-                expirationDate : _expirationDate, //up to the user when create the option
-                expired : false //just creat the option
+                placedDate : block.number, //the block number when the option was created
+                expirationDate : _expirationDate * expirationTime, //up to the user when create the option. Need to informed in days.
+                expired : false, //just creat the option
+                executed: false //just creat the option
             }
         );
         
-        userMargin[msg.sender] = userMargin[msg.sender] - _amount; //updates the userMargin
+        availableMargin[msg.sender] = availableMargin[msg.sender] - _amount; //updates the userMargin
+        allocatedMargin[msg.sender] = allocatedMargin[msg.sender] + _amount;
         options.push(option); //update the options array by pushin the struct above
         orderBook[id] = option; //update the orderBook with the option struct. This will be use in the next updates to have buy and sell functionality to the users
         //userPositions[msg.sender] = options.push(id);//update the userPositions mapping
@@ -118,7 +134,7 @@ contract OptionDex is PriceConsumerV3 {
     }
 
     //called by the buyer to purchase an option    
-    function EnterPosition (uint _id, uint8 _premiumToPay) payable public {
+    function EnterPosition (uint _id, uint8 _premiumToPay) payable public notExpired(_id) notExecuted(_id){
         Option memory _options = orderBook[_id];//initialize the option based on its recored in the orderBook
         address _initiator = _options.initiator;//instatiate the initiator to receive the premium payment
         uint8 _premium = _options.premium; //instatiate the premium value
@@ -165,11 +181,14 @@ contract OptionDex is PriceConsumerV3 {
         address _buyer = _options.buyer;
         address _initiator = _options.initiator;
         uint remainingAmount = calculatingRemaingAmount();
+        _options.expired = true;
+        _options.executed = true;
         IERC20(Token).transferFrom(_buyer, _initiator, remainingAmount);
     }
 
+    //if the buyer settles the option, the contract transfers the native token to the buyer
     function _releaseAssetsToBuyer(uint _id) internal {
-        Option storage _options = orderBook[_id];
+        Option memory _options = orderBook[_id];
         uint _amount = _options.amount;
         address payable _buyer = _options.buyer;
         address payable _initiator = _options.initiator;
