@@ -15,9 +15,9 @@ contract OptionDex{
     address internal Token;
     
     struct Option {
-        uint id; //each option has an id
+        uint _id; //each option has an id
         uint amount; //the amount of native token sold/bought in the option
-        uint8 sidePosition; //call(0) or put(1)
+        string sidePosition; //call or 
         address payable initiator; //who starts the option by selling a put or a call
         address payable buyer; //who purchases the option from the initiator
         uint8 expirationDate; //the date when the option can be settled
@@ -39,57 +39,75 @@ contract OptionDex{
     mapping(address => mapping(uint =>bool)) public premiumPaid; 
 
     //keep a track on the user position in the system 
-    mapping(address => mapping(uint => Option[])) public userPositions;
+    mapping(address => mapping(uint => orderBook)) public userPositions;
     
     //check if the remaining amount has been paid by the buyer to the initiator in order to exercise the option
     mapping(uint => bool) public remainingValueDeposited;
 
-    Option[] public options;
-
-        function deposit() payable public{
+    //receives the user deposit in the native token and updates the user margin
+    function deposit() payable public{
         userMargin[msg.sender] = userMargin[msg.sender] + msg.value; 
     }
 
+    //only if the user has available margin, he can withdraw from the dapp
+    function withdrawMargin(address payable _to, uint _amount) public payable checkMargin(_amount) {
+        (bool sent, bytes memory data) = _to.call{value: _amount}("");
+        require(sent, "Failed to send Ether");
+    }
+
+    //set the CRG Token to be used to purchase options
+    function setAcceptedToken(address _token) public {
+        Token = _token;
+    }
+
+    //Check if the user has available margin to perform operations
     modifier checkMargin(uint amount){
         require(amount <= userMargin[msg.sender], 'User has not enough margin to perform this operation');
         _;
     }
 
+    Option[] public options;//creates the options array that will be populated with the struct format in the initializePosition
+
+    //initialize a option position
     function initializePosition(
-        uint _id,
-        uint _amount, // quantity of options
-        uint8 _sidePosition, 
-        uint8 _premium, //option price
+        uint _amount, 
+        string memory _sidePosition, 
+        uint8 _premium, 
         uint8 _futurePrice, 
         uint8 _expirationDate
         ) public checkMargin(_amount){
+        
+        //each interaction increments the id
+        id = id + 1;
 
+        //instantiate the struct to create a option
         Option memory option = Option (
+            
             {
-                id : _id,
-                amount : _amount,
-                sidePosition : _sidePosition,
+                _id : id,
+                amount : _amount, //up to the user when create the option
+                sidePosition : _sidePosition, //up to the user when create the option
                 initiator : payable (msg.sender),
-                buyer: payable (0x0000000000000000000000000000000000000000),
-                premium : _premium,
-                premiumPaid : false,
-                futurePrice : _futurePrice,
-                expirationDate : _expirationDate,
-                expired : false
+                buyer: payable (0x0000000000000000000000000000000000000000),//the buyer is not set, will be set once some user buys the option
+                premium : _premium, //up to the user when create the option
+                premiumPaid : false, //as the option is being created at this point there is no premium paid
+                futurePrice : _futurePrice, //up to the user when create the option
+                expirationDate : _expirationDate, //up to the user when create the option
+                expired : false //just creat the option
             }
         );
         
-        userMargin[msg.sender] = userMargin[msg.sender] - _amount;
-        options.push(option);
-        orderBook[_id] = option;
+        userMargin[msg.sender] = userMargin[msg.sender] - _amount; //updates the userMargin
+        options.push(option); //update the options array by pushin the struct above
+        orderBook[id] = option; //update the orderBook with the option struct. This will be use in the next updates to have buy and sell functionality to the users
+        userPositions[msg.sender] = id[orderBook[id]];//update the userPositions mapping
 }
 
-    function setAcceptedToken(address _token) public {
-        Token = _token;
-    }
-
+    //internal function to send the CRG Tokens from buyer to initiator when the buyer purchases the option
+    //the frontend dapp needs to request to the buyer to approve this contract to spend the money on his behalf by
+    //callint the Approve function in the CRG Token (ERC20 standard)
     function _buyingTheOption(address _buyer, address _initiator, uint8 _premium) internal{
-        IERC20(Token).transferFrom(_buyer, _initiator, _premium);
+        IERC20(Token).transferFrom(_buyer, _initiator, _premium); //standard ERC20 transferFrom function
     }
 
     function EnterPosition (uint _id, uint8 _premiumToPay) payable public {
