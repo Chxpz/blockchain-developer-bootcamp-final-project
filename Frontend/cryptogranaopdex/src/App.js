@@ -5,35 +5,18 @@ import Trade from "./pages/Trade";
 import Orderbook from "./pages/Orderbook";
 import MyPositions from "./pages/MyPositions";
 import MainPage from "./pages/MainPage";
-
+import { Web3ReactProvider } from "@web3-react/core";
 import { ethers } from "ethers";
-import Web3Modal from "web3modal";
+
+function getLibrary(provider) {
+  return new ethers(provider);
+}
 
 function App() {
-  // let contractAddress = "";
-  // let SimpleStorage_abi = [{}];
-
-  //Using to connect
-  const connectWalletHandler = () => {
-    if (window.ethereum && window.ethereum.isMetaMask) {
-      window.ethereum
-        .request({ method: "eth_requestAccounts" })
-        .then((result) => {
-          return result[0];
-          
-        })
-        .catch((error) => {
-          console.log(error.message);
-        });
-    } else {
-      console.log("Need to install MetaMask");
-      console.log("Please install MetaMask browser extension to interact");
-    }
-  };
-
-      return (
-      <div>
-        <MainNavigation connector={connectWalletHandler} />
+  return (
+    <div>
+      <Web3ReactProvider getLibrary={getLibrary}>
+        <MainNavigation />
         <Switch>
           <Route path="/" exact>
             <MainPage />
@@ -48,8 +31,9 @@ function App() {
             <MyPositions />
           </Route>
         </Switch>
-      </div>
-    );
-  };
+      </Web3ReactProvider>
+    </div>
+  );
+}
 
 export default App;
