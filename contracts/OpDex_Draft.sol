@@ -1,16 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.2;
 
-//import "./PriceConsumerV3.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 
-
 contract OptionDex {
-
-    //one - one/usd
-    // constructor() {
-    //     priceFeed = AggregatorV3Interface(0xcEe686F89bc0dABAd95AEAAC980aE1d97A075FAD);
-    // }
 
     // event OptionInit (uint optionId , address indexed initiator, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint expirationDate);
     // event PositionPurchased (uint optionId , address indexed initiator, address indexed buyer, string sidePosition, uint amountDeposited, uint premium, uint futureSpot , uint startDate, uint purchasedDate, uint expirationDate);
@@ -18,8 +11,8 @@ contract OptionDex {
     // uint expirationDate, address indexed keeper);
 
     uint id;//id asigned to each option
-    address internal Token;// CRG Token used in the Dapp
-    uint checkedPrice;//price verified by the chainlink priceFeed at the expiration date
+    address[] internal Token;// Token 0 is the underline asset Token 1 plays the role of an stablecoin
+    uint checkedPrice;//price that is reference at the expiration date
     uint expirationTime = 5760;//average blocks produced per day
 
     // scope to avoid stack too deep errors
@@ -34,9 +27,8 @@ contract OptionDex {
         bool premiumPaid;//control if the premium was paid
         bool expired;//based on the expirationDate the option can be settled (if expired) or not
         bool executed; //true if the option has been settled
-        // bool remainingAmountPaid;
-        address payable initiator; //who starts the option by selling a put or a call
-        address payable buyer; //who purchases the option from the initiator
+        address initiator; //who starts the option by selling a put or a call
+        address buyer; //who purchases the option from the initiator
     }
     //stores all the updated order in the system
     mapping(uint => Option) public orderBook;
@@ -56,7 +48,7 @@ contract OptionDex {
     //keep a track on the user position in the system 
     //mapping(address => mapping(uint => Option[])) public userPositions;
 
-    function SetexpirationTime(uint _expirationTime) public {
+    function SetExpirationTime(uint _expirationTime) public {
         expirationTime = _expirationTime;
     }
 
@@ -65,27 +57,28 @@ contract OptionDex {
     }
 
     //receives the user deposit in the native token and updates the availableMarginCall
-    function deposit(uint _amount) payable public{
-        availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount; 
+    function depositMarginCall(uint _amount) public{
+        IERC20(Token[0]).transferFrom(msg.sender, address(this), _amount);
+        availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _amount;
     }
 
-    // //only if the user has available margin, he can withdraw from the dapp
-    function withdrawMarginCall(address payable _to, uint _amount) public payable checkMarginCall(_amount) {
-        (bool sent, bytes memory data) = _to.call{value: _amount}("");
-        require(sent, "Failed to send One");
+    function withdrawMarginCall(uint _amount) public checkMarginCall(_amount){
+        availableMarginCall[msg.sender] = availableMarginCall[msg.sender] - _amount;
+        IERC20(Token[0]).transfer(msg.sender, _amount);
     }
 
     function depositMarginPut(uint _amount) public{
-        IERC20(Token).transferFrom(msg.sender, address(this), _amount);
+        IERC20(Token[1]).transferFrom(msg.sender, address(this), _amount);
         availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _amount;
     }
 
     function withdrawMarginPut(uint _amount) public checkMarginPut(_amount){
-        IERC20(Token).transfer(msg.sender, _amount);
+        availableMarginPut[msg.sender] = availableMarginPut[msg.sender] - _amount;
+        IERC20(Token[1]).transfer(msg.sender, _amount);
     }
 
     //set the CRG Token to be used to purchase options
-    function setAcceptedToken(address _token) public {
+    function setAcceptedToken(address[] memory _token) public {
         Token = _token;
     }
 
@@ -106,7 +99,7 @@ contract OptionDex {
     }
 
     modifier notExpired(uint _id){
-        require((orderBook[_id].expirationDate + 1000) <= block.number, 'Option has alredy expired'); //giving 1000 blocks bonus
+        require((orderBook[_id].expirationDate) <= block.number, 'Option has alredy expired'); //giving 1000 blocks bonus
         _;
     }
 
@@ -131,8 +124,8 @@ contract OptionDex {
                 _id : id,
                 amount : _amount, //up to the user when create the option
                 sidePosition : _sidePosition, //up to the user when create the option
-                initiator : payable (msg.sender),
-                buyer: payable (0x0000000000000000000000000000000000000000),//the buyer is not set, will be set once some user buys the option. See function EnterPosition
+                initiator : msg.sender,
+                buyer: 0x0000000000000000000000000000000000000000,//the buyer is not set, will be set once some user buys the option. See function EnterPosition
                 premium : _premium, //up to the user when create the option
                 premiumPaid : false, //as the option is being created at this point there is no premium paid
                 futurePrice : _futurePrice, //up to the user when create the option
@@ -140,7 +133,6 @@ contract OptionDex {
                 expirationDate : _expirationDate * expirationTime, //up to the user when create the option. Need to informed in days.
                 expired : false, //just creat the option
                 executed: false //just creat the option
-                // remainingAmountPaid: false
             }
         );
         if(_sidePosition == 0){
@@ -152,9 +144,8 @@ contract OptionDex {
             availableMarginPut[msg.sender] = availableMarginPut[msg.sender] - (_amount * _futurePrice); //updates the userMargin
             allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] + (_amount * _futurePrice);
         }else {
-            string memory message ='Should define 0 for call or 1 for put';
+            string memory message = "Should define 0 for call or 1 for put";
         }
-        
         options.push(option._id); //update the options array by pushin the struct above
         orderBook[id] = option; //update the orderBook with the option struct. This will be use in the next updates to have buy and sell functionality to the users       
 }
@@ -162,17 +153,15 @@ contract OptionDex {
     // the frontend dapp needs to request to the buyer to approve this contract to spend the money on his behalf by
     // callint the Approve function in the CRG Token (ERC20 standard)
     function _buyingTheOption(address _buyer, address _initiator, uint8 _premium) internal{
-        IERC20(Token).transferFrom(_buyer, _initiator, _premium); //standard ERC20 transferFrom function
+        IERC20(Token[1]).transferFrom(_buyer, _initiator, _premium); 
     }
 
     //called by the buyer to purchase an option    
     function EnterPosition (uint _id) public notExpired(_id) notExecuted(_id){
         Option memory _options = orderBook[_id];//initialize the option based on its recored in the orderBook
-        _options.initiator;//instatiate the initiator to receive the premium payment
-        _options.premium; //instatiate the premium value
-        _buyingTheOption(msg.sender, _options.initiator, _options.premium);//call the internal function to send the CRG Tokens (premium payment) to the initiator
         _options.premiumPaid = true; //once Paid set the premium paid to true
-        _options.buyer = payable (msg.sender);//update the orderBook setting the buyer as msg.sender
+        _options.buyer = msg.sender;//update the orderBook setting the buyer as msg.sender
+        _buyingTheOption(msg.sender, _options.initiator, _options.premium);//call the internal function to send the CRG Tokens (premium payment) to the initiator
     }
 
     //if the initiator wants to shutdown the option as long as no one purchased it
@@ -180,45 +169,25 @@ contract OptionDex {
         require(!orderBook[_id].premiumPaid, 'Option can not be removed');
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
-        _options.initiator = payable (0x0000000000000000000000000000000000000000);
-        _options.buyer = payable (0x0000000000000000000000000000000000000000);
+        _options.initiator = 0x0000000000000000000000000000000000000000;
+        _options.buyer = 0x0000000000000000000000000000000000000000;
         if(orderBook[_id].sidePosition == 0){
-            availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount; //updates the userMargin
             allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
+            availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount; //updates the userMargin
         }else if(orderBook[_id].sidePosition == 1){
-            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + ( _options.amount * _options.futurePrice); //updates the userMargin
             allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - ( _options.amount * _options.futurePrice);
+            availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + ( _options.amount * _options.futurePrice); //updates the userMargin
         }else {
             string memory message = 'Error';
         }
     }
 
-    // Chainlink PriceConsumer Returns the latest price for the ONE/USD testNet
-    // shoud comment this function to run the dapp locally
-    // function getLatestPrice() public view virtual override returns (int) {
-    //     (
-    //         uint80 roundID, 
-    //         int price,
-    //         uint startedAt,
-    //         uint timeStamp,
-    //         uint80 answeredInRound
-    //     ) = priceFeed.latestRoundData();
-    //     return price;
-    // }
-
-    // //update the state variable checkedPrice
-    // //shoud comment this function to run the dapp locally
-    // function updateCheckPrice() public returns (int){
-    //     checkedPrice = getLatestPrice();
-    //     return checkedPrice; 
-    // }
-
-    //Use this function to run the dapp locally
+    //Set the price of the underline asset token0
     function setCheckPrice(uint _inputedPrice) public{
         checkedPrice = _inputedPrice;
     }
     
-    //Use this function to run the dapp locally
+    //Get the price of the underline asset token0
     function updateCheckPrice() public view returns (uint){
         return checkedPrice; 
     }
@@ -230,11 +199,11 @@ contract OptionDex {
         _options.premium;
         _options.sidePosition;
         if(_options.sidePosition == 0){
-            uint total = _options.amount * uint(checkedPrice);
+            uint total = _options.amount * checkedPrice;
             uint remainingAmount =  total - _options.premium;
             return remainingAmount;
         }else if(_options.sidePosition == 1){
-            uint remainingAmount = _options.amount * uint(checkedPrice);
+            uint remainingAmount = _options.amount * checkedPrice;
             return remainingAmount;
         }else{
             string memory message = "error";
@@ -247,10 +216,9 @@ contract OptionDex {
         Option memory _options = orderBook[_id];
         uint remainingAmount = calculatingRemaingAmount(_id);
         if(_options.sidePosition == 0){
-            IERC20(Token).transferFrom(_options.buyer, _options.initiator, remainingAmount);
+            IERC20(Token[1]).transferFrom(_options.buyer, _options.initiator, remainingAmount);
         }else if(_options.sidePosition == 1){
-            (bool sent, bytes memory data) = address(this).call{value: remainingAmount}("");
-            require(sent, "Failed to send Native");
+            IERC20(Token[0]).transferFrom(_options.buyer, _options.initiator, remainingAmount);
         }else{
             string memory message = "error";
         }       
@@ -262,15 +230,17 @@ contract OptionDex {
     //if the buyer settles the option, the contract transfers the native token to the buyer(call) or ERC20(put)
     function _releaseAssetsToBuyer(uint _id) internal {
         Option memory _options = orderBook[_id];
-        
+        address initiator = _options.initiator;
+        address buyer = _options.buyer;
+        uint amount = _options.amount;
         if(_options.sidePosition == 0){
-            (bool sent, bytes memory data) = address(this).call{value: _options.amount}("");
-            require(sent, "Failed to send Native");
-            allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
+            allocatedMarginCall[initiator] = allocatedMarginCall[initiator] - _options.amount;
+            IERC20(Token[0]).transfer(buyer, amount);
         }else if(_options.sidePosition == 1){
             uint _value = _options.amount * _options.futurePrice;
-            IERC20(Token).transfer(_options.buyer, _value);
-            allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
+            allocatedMarginPut[initiator] = allocatedMarginPut[initiator] - _value;
+            IERC20(Token[1]).transfer(_options.buyer, _value);
+            
         }else{
             string memory message = 'error';
         }
@@ -280,21 +250,20 @@ contract OptionDex {
     // the initiator is able to release allocated margin
     function releaseAllocatedMarginForAPremiumPaidExpiredOption(uint _id) public notExecuted(_id){
         // require(orderBook[_id].remainingAmountPaid == true, 'Option can not be removed');
+        require(orderBook[_id].buyer != 0x0000000000000000000000000000000000000000 ,'Option cannot be removed');
         require(orderBook[_id].initiator == msg.sender, 'Caller is not the initiator');
         Option memory _options = orderBook[_id];
         orderBook[_id].executed = true;
         
         if(_options.sidePosition == 0){
-            (bool sent, bytes memory data) = _options.initiator.call{value: _options.amount}("");
-            require(sent, "Failed to send Native");
             allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] + _options.amount;
         }else if(_options.sidePosition == 1){
             uint _value = _options.amount * _options.futurePrice;
-            IERC20(Token).transfer(_options.initiator, _value);
             allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] + _value;
         }
-        _options.initiator = payable (0x0000000000000000000000000000000000000000);
-        _options.buyer = payable (0x0000000000000000000000000000000000000000);
+
+        _options.initiator = 0x0000000000000000000000000000000000000000;
+        _options.buyer = 0x0000000000000000000000000000000000000000;
     }
     
     function Settlement (uint _id) public {
@@ -306,11 +275,9 @@ contract OptionDex {
         if(_options.sidePosition == 0) {
             if(_spotPrice >= _options.futurePrice){
                 _options.expired = true;
-                (bool sent, bytes memory data) = _options.initiator.call{value: _options.amount}("");
-                require(sent, "Failed to send Native");
                 allocatedMarginCall[msg.sender] = allocatedMarginCall[msg.sender] - _options.amount;
-                availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount;
-            }else{
+                availableMarginCall[msg.sender] = availableMarginCall[msg.sender] + _options.amount;                
+                }else{
                 _options.expired = true;
                 _sendRemainingAmountToInitiator(_id);
                 _releaseAssetsToBuyer(id);
@@ -320,7 +287,6 @@ contract OptionDex {
                 _options.expired = true;
                 allocatedMarginPut[msg.sender] = allocatedMarginPut[msg.sender] - _value;
                 availableMarginPut[msg.sender] = availableMarginPut[msg.sender] + _value;
-                IERC20(Token).transfer(_options.initiator, _value);
             }else{
                 _options.expired = true;
                 _sendRemainingAmountToInitiator(_id);
@@ -331,5 +297,3 @@ contract OptionDex {
         }
     }
 }
-
-
