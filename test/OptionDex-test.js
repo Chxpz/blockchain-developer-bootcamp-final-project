@@ -36,6 +36,28 @@ contract("Tests for OptionDex Contract", async (accounts) => {
       it("Should decrease the available margin put when user withdraw", async () => {
         assert.equal(true, true);
       });
+
+      it("Should not allow withdraw when the user marginPut is lower the the amount requested", async () => {
+        assert.equal(true, true);
+      });
+
+      it("Should not allow withdraw when the user marginCall is lower the the amount requested", async () => {
+        assert.equal(true, true);
+      });
+
     });
+
+    describe("#Testing Setting the ERC20 on the opDex contract", function () {
+        beforeEach(async function () {
+          opDex = await optionDex.deployed();
+        });
+  
+        it("Should receive an array of contracts ERC20 to be used on the platform", async () => {
+          assert.equal(true, true);
+        });
+  
+        
+      });
+
   });
 });
