@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract CryptogranaToken is ERC20, ERC20Burnable, Pausable, Ownable {
-    constructor() ERC20("Cryptograna", "CRG") {
+contract CryptogranaToken1 is ERC20, ERC20Burnable, Pausable, Ownable {
+    constructor() ERC20("Cryptograna", "CRG1") {
         _mint(msg.sender, 500 * 10 ** decimals());
     }
 
